@@ -153,6 +153,28 @@ class TestReleaseCheckNegative:
         checks = release_check.run_checks(root, "v0.1.0")
         assert any("production surface unchanged" in name for name in failures(checks))
 
+    def test_unrelated_history_with_identical_bytes_blocks_release(self, tmp_path):
+        """Diff-emptiness is not lineage: an orphan branch carrying
+        byte-identical production + harness files, with a testedPluginCommit
+        that exists in the repository but is NOT an ancestor of the release
+        commit, must fail the ancestry proof."""
+        root = make_git_repo(tmp_path)
+        requalify_receipt(root)
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "qualification receipt")
+        # receipt keeps testedPluginCommit = current HEAD (exists in repo)
+        # ...then the release is cut from an UNRELATED orphan history that
+        # happens to carry identical production/harness bytes.
+        git(root, "checkout", "-q", "--orphan", "release-orphan")
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "orphan release commit")
+        git(root, "tag", "-a", "v0.1.0", "-m", "release")
+        checks = release_check.run_checks(root, "v0.1.0")
+        failed_names = failures(checks)
+        assert any("is an ancestor of the release commit" in name for name in failed_names), (
+            failed_names
+        )
+
     def test_harness_change_after_qualification_blocks_release(self, tmp_path):
         """A qualification-harness edit after the tested commit blocks the
         release even if someone hand-re-signs the digests in the receipt."""

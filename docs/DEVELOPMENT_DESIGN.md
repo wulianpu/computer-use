@@ -159,12 +159,13 @@ version-check wrapper.
 | `scripts/sync_cua.py` | upstream sync | download + pin only (raw cache, license, lock, notices); git fallback fetches by resolved commit SHA, never HEAD |
 | `scripts/project_cua_skill.py` | projection | deterministic skill projection; minimal registered transforms; fail-closed on upstream drift; writes `projection.json` + `projection-report.json` |
 | `scripts/verify_upstream.py` | verification | offline raw-source hashes vs lock, license, notices |
-| `scripts/verify_projection.py` | verification | offline: skill tree == regeneration, projection.json/report consistency, receipt validity (projection digest bound) |
+| `scripts/verify_projection.py` | verification | offline: skill tree == regeneration, projection.json/report consistency, receipt validity (projection + surface + harness digests bound) |
 | `scripts/validate_plugin.py` | verification | pinned official schemas + project policy, offline; mcp.json deterministic template; projected-skill Agent Skills conformance |
 | `scripts/mcp_client.py` | verification | development-only MCP qualification harness (custom harness acceptable; official SDK acceptable; never production) |
 | `scripts/mcp_probe.py` | qualification (L2) | handshake (real notifications/initialized lifecycle, negotiated-version validation, pagination-aware tools/list), required subset, optional `--snapshot` contract snapshot |
 | `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only with asserted element tokens, ownership-proven (`owned_window_ids = {selected window}`), exact digit-bounded result, owned-only cleanup |
-| `scripts/release_check.py` | verification | machine-proves the release evidence chain: tag/version/CHANGELOG alignment, digests vs receipts (projection + surface + harness), production unchanged since the qualified commit, licensing; prints RELEASE READY |
+| `scripts/release_check.py` | verification | machine-proves the release evidence chain: tag/version/CHANGELOG alignment, digests vs receipts (projection + surface + harness), production AND harness unchanged since testedPluginCommit (with real
+ ancestry proof), licensing; prints RELEASE READY |
 
 Validation model: the **official Agent Plugins schemas, pinned as local
 copies under `schemas/agent-plugins/1.0.0/`, are the authority** for

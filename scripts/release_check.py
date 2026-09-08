@@ -161,7 +161,28 @@ def run_checks(root: Path, tag: str) -> list[Check]:
             not problems,
             ", ".join(problems) if problems else tested[:12],
         )
+        # Ancestry proof: an empty tree diff alone does NOT prove "since" —
+        # two unrelated histories can carry byte-identical production and
+        # harness files. The tested commit must be a real ancestor of HEAD.
+        ancestry_ok = False
         if not problems:
+            try:
+                _git(root, "merge-base", "--is-ancestor", tested, "HEAD")
+            except RuntimeError as exc:
+                add(
+                    f"{label}: testedPluginCommit is an ancestor of the release commit",
+                    False,
+                    f"diff-emptiness is not lineage: {tested[:12]} is NOT in the "
+                    f"release history ({exc})",
+                )
+            else:
+                ancestry_ok = True
+                add(
+                    f"{label}: testedPluginCommit is an ancestor of the release commit",
+                    True,
+                    f"{tested[:12]} -> HEAD",
+                )
+        if not problems and ancestry_ok:
             for scope, paths in (
                 ("production surface", PRODUCTION_PATHS),
                 ("qualification harness", HARNESS_PATHS),

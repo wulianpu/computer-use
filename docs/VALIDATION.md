@@ -36,7 +36,9 @@ What each proves:
 - `verify_upstream.py` — lock well-formedness, raw source file set, sha256
   match, license presence, notice/lock agreement.
 - `verify_projection.py` — the committed skill tree equals a fresh
-  regeneration from the raw source (no unexplained diff can exist),
+  regeneration from the raw source (no unexplained diff can exist), the
+  current projection + production surface + qualification harness digests
+  match the receipts,
   `projection.json`/`projection-report.json` consistency, projection-digest
   stability, and that every qualification receipt still matches the pinned
   source + current projection digest (invalidated receipts FAIL until
@@ -99,7 +101,8 @@ elsewhere is not this run's concern.
 After L2 + L3 pass on a concrete environment, add a receipt to
 `upstream/compatibility.json` → `verified` (see `upstream/README.md`).
 Receipts bind `version + upstreamCommit + skillSource + projectionMode +
-projectionDigest + testedPluginCommit + driver artifact sha256`; any change
+projectionDigest + pluginSurfaceDigest + qualificationHarnessDigest +
+testedPluginCommit + driver artifact sha256`; any change
 invalidates them (enforced by `verify_projection.py`).
 
 Windows qualification target matrix (intended scope): Windows 11 x86_64
