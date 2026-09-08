@@ -240,10 +240,8 @@ plugin qualifies).
   bypass; no OS permission bypass; no default use of authenticated browser
   profiles; no automatic screenshot persistence; no secret logging; no
   auto-replay of uncertain mutations; UI content is untrusted data.
-- Release 0.1.0 requires the full acceptance list of the design document
-  (§72), including real `get_window_state` structured + image content PASS
-  and Calculator `6 × 7 = 42` PASS on a Windows environment recorded in
-  `verified`.
+- Release 0.1.0 requires the full acceptance list in
+  [§14](#14-v010-release-acceptance) below.
 
 ## 13. Frozen engineering principles
 
@@ -252,3 +250,34 @@ plugin qualifies).
 3. Portable packaging belongs to computer-use.
 4. Authorization belongs to the Host.
 5. Desktop security belongs to the OS.
+
+## 14. v0.1.0 Release Acceptance
+
+The authoritative acceptance list for the v0.1.0 release. Every item must
+PASS before the version is tagged; qualification evidence (not claims)
+satisfies the L2/L3 items.
+
+```text
+Agent Plugins official schemas PASS          (validate_plugin.py, pinned schemas)
+Projected Skill conformance PASS             (Agent Skills frontmatter rules, generated marker)
+Raw upstream hashes PASS                     (verify_upstream.py vs cua.lock.json)
+Projection verification PASS                 (verify_projection.py: regeneration equality)
+No unexplained Skill diff                    (construction: tree == fresh regeneration)
+MCP declaration PASS                         (mcp.json == deterministic template)
+No runtime wrapper / no bundled runtime      (project policy)
+Portable CI PASS                             (GitHub Actions on the release commit)
+Cua 0.24.0 L2 PASS                           (mcp_probe.py: negotiated handshake, tools/list)
+Required tool subset 18/18 PASS              (required ⊆ actual)
+get_window_state structuredContent PASS      (Calculator E2E)
+get_window_state image content PASS          (Calculator E2E)
+Calculator 6 × 7 = 42 PASS                   (semantic-only, element_token gated, exact match)
+Owned-only cleanup PASS                      (baseline-proven ownership, zero leftovers)
+Verified receipt current                     (compatibility.json binds version/commit/
+                                              skillSource/projectionMode/projectionDigest/
+                                              pluginCommit/driver sha256)
+LICENSE / THIRD_PARTY_NOTICES PASS           (attribution matches lock)
+```
+
+Actual verified support is defined exclusively by the receipts in
+`upstream/compatibility.json` — nothing else confers "supported" (see
+"Verified support" in the README for the current scope).

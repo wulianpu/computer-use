@@ -56,11 +56,22 @@ repository + version + tag + immutable commit + per-file sha256) lives in
 into `skills/cua-driver/` with the minimal, explicitly registered transform
 set in `upstream/projection.json`:
 
-- `normalize-agent-skills-frontmatter` — standard Agent Skills frontmatter;
-  the official `name`/`description` are preserved verbatim
+- `normalize-agent-skills-frontmatter` — standard Agent Skills frontmatter.
+  The upstream `name` is preserved verbatim; the upstream `description` is
+  transport-normalized only ("via the cua-driver CLI (default) or MCP
+  server" → "via the Cua Driver MCP server") with its original SHA-256
+  retained in projected metadata (`upstream-description-sha256`)
 - `insert-generated-notice` — provenance comment
-- `prefer-agent-plugin-mcp-transport` — one additive note mapping the
-  upstream CLI examples onto the plugin's MCP transport
+- `prefer-agent-plugin-mcp-transport` — fail-closed transport
+  normalization: the description phrase above, plus the upstream
+  CLI-default "GUI transport defaults" block (which mandates CLI-first)
+  is replaced byte-exactly by the Agent Plugin MCP transport contract,
+  plus a boundary note scoping the shell/management section to hosts that
+  really provide a shell
+- `exclude-host-specific-mcp-setup-guidance` — the Claude Code
+  compatibility/setup subsection (host-specific install guidance, e.g.
+  `cua-driver mcp-config --client claude`) is not Computer Use behavior
+  and is removed from the host-neutral plugin
 - `remove-plugin-side-native-installer-execution` — the Windows
   `irm … | iex` one-liner becomes "refer the user to the official guide and
   stop"; the plugin never installs native executables
@@ -124,6 +135,22 @@ python scripts/e2e_calculator.py --yes
 Qualification receipts bind `version + upstreamCommit + skillSource +
 projectionMode + projectionDigest + pluginCommit + driver artifact sha256`;
 any change invalidates them.
+
+## Verified support
+
+v0.1.0 has been project-qualified on:
+
+- Windows 11 (build 26200)
+- x86_64, interactive desktop
+- primary display DPI 100%
+- Cua Driver 0.24.0 (official release binary, sha256-verified)
+- L2 MCP contract + L3 Calculator semantic E2E (`6 × 7 = 42`)
+
+Other Cua-supported platforms and environments (other Windows builds and
+DPI scales, macOS, Linux, multi-monitor, other applications) have **not**
+been independently qualified by computer-use — Cua's own capability
+coverage is broader than what these receipts certify. Actual verified
+support is defined exclusively by `upstream/compatibility.json`.
 
 ## Ownership boundary
 
