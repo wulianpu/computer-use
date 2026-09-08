@@ -12,7 +12,7 @@
       "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
       "projectionMode": "raw-skill-normalized",
       "projectionDigest": "sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29",
-      "pluginCommit": "0142eb6a46e3f84e60a3cc0880e8e8187d428df6",
+      "pluginCommit": "cf5b29c44b40242dcc28414f6caefb679c8f5be7",
       "platform": "windows-x86_64",
       "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96)",
       "driver": {
@@ -25,7 +25,8 @@
       ],
       "date": "2026-09-08",
       "notes": "Qualification ran against the projected official skill (raw-skill-normalized, including the fail-closed MCP transport normalization and the exclusion of the host-specific Claude Code MCP setup subsection), using the protocol-correct harness (real notifications/initialized lifecycle, negotiated-version validation, pagination-aware tools/list). L2: MCP probe PASS — negotiated-protocol compatibility qualification (handshake negotiated at 2025-06-18, the newest revision cua-driver 0.24.0 supports; the harness downgrades automatically for older servers and does not claim an independent modern+legacy matrix), serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP); pre-launch baseline proved launch ownership and only the selected window entered owned_window_ids; snapshot-bound element_token clicks (6, x, 7, =) asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); owned-only cleanup via the title-bar close button (background->foreground escalation).",
-      "pluginSurfaceDigest": "sha256:6ea5a6c5eca38ddb0fb102ad2cb108ec307cd204973dd6e14717c0d67053586f"
+      "pluginSurfaceDigest": "sha256:6ea5a6c5eca38ddb0fb102ad2cb108ec307cd204973dd6e14717c0d67053586f",
+      "qualificationHarnessDigest": "sha256:1c7a66be2fdd01c4af92f874ad2ada1b22481830a0a6ceb75a8d586ca2b76e47"
     }
   ],
   "unsupported": []
