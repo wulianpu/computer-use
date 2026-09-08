@@ -39,10 +39,12 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
   tree equals a fresh regeneration (projection digest
   `sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29`),
   and `scripts/release_check.py` machine-proves the release evidence chain
-  (tag/version/CHANGELOG alignment, digests vs receipts, production
-  surface — `plugin.json` + `mcp.json` + `skills/`, bound via
-  `pluginSurfaceDigest` — unchanged since the qualified commit) and prints
-  RELEASE READY.
+  (tag/version/CHANGELOG alignment, digests vs receipts, and — with an
+  explicit Git ancestry proof — that the production surface
+  (`plugin.json` + `mcp.json` + `skills/`, bound via `pluginSurfaceDigest`)
+  and the qualification harness (bound via `qualificationHarnessDigest`)
+  are both unchanged from `testedPluginCommit` to the release commit) and
+  prints RELEASE READY.
 
 ### Toolchain
 
@@ -71,7 +73,7 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
 
 ### Tests & CI
 
-- 75 tests: projection determinism and fail-closed drift, receipt
+- 76 tests: projection determinism and fail-closed drift, receipt
   invalidation, Agent Skills frontmatter conformance, mcp.json template
   determinism, supply-chain shape checks, and the MCP client against a
   fake server. Portable CI workflow (no Cua, no desktop).
