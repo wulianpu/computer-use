@@ -250,13 +250,12 @@ def transform_shell_section(body: str) -> str:
             "section — manual review required (transform "
             "'prefer-agent-plugin-mcp-transport')."
         )
-    return body.replace(
-        heading_with_gap, heading_with_gap + SHELL_BOUNDARY_NOTE + "\n\n", 1
-    )
+    return body.replace(heading_with_gap, heading_with_gap + SHELL_BOUNDARY_NOTE + "\n\n", 1)
 
 
-def project_frontmatter(frontmatter: dict, lock: dict, description: str,
-                        original_description_sha256: str) -> str:
+def project_frontmatter(
+    frontmatter: dict, lock: dict, description: str, original_description_sha256: str
+) -> str:
     name = frontmatter.get("name")
     if not isinstance(name, str) or not name:
         raise ProjectionError("upstream SKILL.md frontmatter has no usable 'name'")
@@ -348,9 +347,32 @@ def sha256_hex(data: bytes) -> str:
 
 def projection_digest(projected: dict[str, bytes]) -> str:
     """SHA256 over the canonical (sorted name, hash) list of the skill tree."""
-    canonical = "".join(
-        f"{name}:{sha256_hex(projected[name])}\n" for name in sorted(projected)
-    )
+    canonical = "".join(f"{name}:{sha256_hex(projected[name])}\n" for name in sorted(projected))
+    return "sha256:" + sha256_hex(canonical.encode("utf-8"))
+
+
+def plugin_surface_digest(root: Path) -> str:
+    """SHA256 over the ENTIRE production surface the Host consumes:
+
+        plugin.json + mcp.json + skills/cua-driver/*
+
+    Any production byte change (manifests included) changes this digest, so a
+    qualification receipt bound to it is invalidated by every production edit,
+    not only skill-tree edits.
+    """
+    entries: list[tuple[str, str]] = []
+    for rel in ("mcp.json", "plugin.json"):
+        path = root / rel
+        if not path.is_file():
+            raise ProjectionError(f"production file missing: {rel}")
+        entries.append((rel, sha256_hex(path.read_bytes())))
+    skill_dir = root / SKILL_DIR_REL
+    if not skill_dir.is_dir():
+        raise ProjectionError(f"skill directory missing: {SKILL_DIR_REL}")
+    for p in sorted(skill_dir.iterdir()):
+        if p.is_file():
+            entries.append((f"skills/cua-driver/{p.name}", sha256_hex(p.read_bytes())))
+    canonical = "".join(f"{name}:{digest}\n" for name, digest in sorted(entries))
     return "sha256:" + sha256_hex(canonical.encode("utf-8"))
 
 
@@ -393,9 +415,7 @@ def project(root: Path) -> dict:
     projected: dict[str, bytes] = {}
     transformed: dict[str, list[str]] = {}
 
-    projected["SKILL.md"] = project_skill_md(
-        raw["SKILL.md"].decode("utf-8"), lock
-    ).encode("utf-8")
+    projected["SKILL.md"] = project_skill_md(raw["SKILL.md"].decode("utf-8"), lock).encode("utf-8")
     transformed["SKILL.md"] = [
         "normalize-agent-skills-frontmatter",
         "insert-generated-notice",
@@ -403,9 +423,9 @@ def project(root: Path) -> dict:
         "exclude-host-specific-mcp-setup-guidance",
     ]
 
-    projected["WINDOWS.md"] = transform_windows_md(
-        raw["WINDOWS.md"].decode("utf-8")
-    ).encode("utf-8")
+    projected["WINDOWS.md"] = transform_windows_md(raw["WINDOWS.md"].decode("utf-8")).encode(
+        "utf-8"
+    )
     transformed["WINDOWS.md"] = ["remove-plugin-side-native-installer-execution"]
 
     for name in COMPANIONS:
@@ -443,6 +463,7 @@ def project(root: Path) -> dict:
             "skillSource": lock["skillSource"],
         },
         "projectionDigest": digest,
+        "pluginSurfaceDigest": plugin_surface_digest(root),
         "transforms": [
             {"id": transform_id, "file": file}
             for file, transform_ids in transformed.items()

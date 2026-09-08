@@ -17,9 +17,7 @@ import mcp_client  # noqa: E402
 
 
 def spawn(mode: str = "ok") -> mcp_client.McpStdioClient:
-    return mcp_client.McpStdioClient(
-        sys.executable, [str(FIXTURE)], env={"FAKE_MODE": mode}
-    )
+    return mcp_client.McpStdioClient(sys.executable, [str(FIXTURE)], env={"FAKE_MODE": mode})
 
 
 class TestHappyPath:
@@ -46,6 +44,39 @@ class TestHappyPath:
 
 
 class TestFailureModes:
+    def test_lifecycle_requires_initialized_notification(self):
+        """initialize result alone must not unlock normal operation; the
+        notifications/initialized notification completes the lifecycle."""
+        with spawn() as client:
+            client.start()
+            client.request(
+                "initialize",
+                {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "t", "version": "0"},
+                },
+                timeout=10,
+            )
+            with pytest.raises(mcp_client.McpError, match="initialized"):
+                client.tools_list(timeout=10)
+            client.notify("notifications/initialized")
+            assert client.tools_list(timeout=10)  # now unlocked
+
+    def test_tools_list_follows_pagination(self):
+        with spawn("paginated-tools") as client:
+            client.initialize(timeout=10)
+            tools = client.tools_list(timeout=10)
+            required = json.loads(CONTRACT.read_text(encoding="utf-8"))["tools"]
+            assert {t["name"] for t in tools} == set(required)  # all pages aggregated
+
+    def test_unsupported_negotiated_protocol_rejected(self):
+        with spawn("bad-protocol") as client:
+            client.start()
+            with pytest.raises(mcp_client.McpConnectionError, match="unsupported protocol"):
+                client.initialize(timeout=10)
+            client.close()
+
     def test_legacy_protocol_fallback(self):
         with spawn("legacy") as client:
             result = client.initialize(timeout=10)

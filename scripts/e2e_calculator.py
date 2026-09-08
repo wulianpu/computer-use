@@ -22,7 +22,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import shutil
 import sys
@@ -30,7 +29,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import mcp_client  # noqa: E402  (development tool dependency)
+import mcp_client
 
 # Button label candidates per platform/locale (English Windows uses "Six",
 # "Multiply", "Equals"; zh-CN uses "六", "乘以", "等于"; others "6", "×", "=").
@@ -41,7 +40,16 @@ BUTTONS: dict[str, tuple[str, ...]] = {
     "=": ("=", "equals", "equal", "is equal to", "等于"),
 }
 CLICKABLE_HINTS = ("button", "press", "invoke", "click")
-TOKEN_KEYS = ("element_token", "token", "element", "ref", "ax_token", "elementId", "element_id", "id")
+TOKEN_KEYS = (
+    "element_token",
+    "token",
+    "element",
+    "ref",
+    "ax_token",
+    "elementId",
+    "element_id",
+    "id",
+)
 TEXT_KEYS = ("name", "title", "label", "value", "text", "role")
 DISPLAY_HINTS = ("display", "result", "expression", "显示", "结果")
 CLOSE_BUTTON_LABELS = ("关闭 计算器", "关闭", "close calculator", "close")
@@ -49,15 +57,20 @@ CLOSE_BUTTON_LABELS = ("关闭 计算器", "关闭", "close calculator", "close"
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--yes", action="store_true",
-                        help="actually drive the desktop (without it: dry run)")
+    parser.add_argument(
+        "--yes", action="store_true", help="actually drive the desktop (without it: dry run)"
+    )
     parser.add_argument("--command", default="cua-driver")
-    parser.add_argument("--app", default="calc,计算器",
-                        help="comma-separated substrings used to discover the calculator app "
-                             "(default: 'calc,计算器' — English and zh-CN system names)")
+    parser.add_argument(
+        "--app",
+        default="calc,计算器",
+        help="comma-separated substrings used to discover the calculator app "
+        "(default: 'calc,计算器' — English and zh-CN system names)",
+    )
     parser.add_argument("--expect", default="42", help="expected displayed result")
-    parser.add_argument("--settle", type=float, default=1.0,
-                        help="seconds to wait after launch / each click")
+    parser.add_argument(
+        "--settle", type=float, default=1.0, help="seconds to wait after launch / each click"
+    )
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--root", default=None, help="repository root")
     return parser.parse_args(argv)
@@ -84,9 +97,7 @@ def collect_elements(node, out: list | None = None) -> list[dict]:
 
 
 def element_text(element: dict) -> str:
-    return " ".join(
-        str(element[key]) for key in TEXT_KEYS if element.get(key) is not None
-    )
+    return " ".join(str(element[key]) for key in TEXT_KEYS if element.get(key) is not None)
 
 
 def normalize(text: str) -> str:
@@ -152,9 +163,7 @@ def build_args(schema: dict | None, candidates: dict) -> dict:
     """
     properties = (schema or {}).get("properties") or {}
     args = {key: value for key, value in candidates.items() if key in properties}
-    missing_required = [
-        key for key in (schema or {}).get("required", []) if key not in args
-    ]
+    missing_required = [key for key in (schema or {}).get("required", []) if key not in args]
     if missing_required:
         raise AssertionError(
             f"tool schema requires {missing_required}, but no semantic candidate "
@@ -210,7 +219,11 @@ def find_session_id(node) -> str | None:
     if isinstance(node, dict):
         for key in ("session", "session_id", "sessionId", "id"):
             value = node.get(key)
-            if key in ("session", "session_id", "sessionId") and value is not None and not isinstance(value, (dict, list)):
+            if (
+                key in ("session", "session_id", "sessionId")
+                and value is not None
+                and not isinstance(value, (dict, list))
+            ):
                 return value
         for value in node.values():
             found = find_session_id(value)
@@ -258,8 +271,14 @@ def plan_only(args) -> int:
     return 0
 
 
-def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: float,
-                         launch_pid=None, owned_window_ids: set | None = None) -> None:
+def cleanup_launched_app(
+    client,
+    schemas: dict,
+    needles: list[str],
+    timeout: float,
+    launch_pid=None,
+    owned_window_ids: set | None = None,
+) -> None:
     """Best-effort, semantic-only cleanup of what THIS run launched.
 
     Ownership is proven by the launch result (real app pid) or by the
@@ -280,8 +299,13 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
     # 1. running app with the launch-returned pid (the real app pid)
     if launch_pid:
         try:
-            apps = extract_apps(result_payload(client.tools_call(
-                "list_apps", build_args(schemas.get("list_apps"), {}), timeout=timeout)))
+            apps = extract_apps(
+                result_payload(
+                    client.tools_call(
+                        "list_apps", build_args(schemas.get("list_apps"), {}), timeout=timeout
+                    )
+                )
+            )
             entry = next((a for a in apps if a.get("pid") == launch_pid), None)
             if entry:
                 client.tools_call("kill_app", {"pid": launch_pid}, timeout=30.0)
@@ -292,13 +316,20 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
 
     # 2. owned leftover window (e.g. suspended UWP) -> title-bar close button
     try:
-        windows = extract_windows(result_payload(client.tools_call(
-            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
+        windows = extract_windows(
+            result_payload(
+                client.tools_call(
+                    "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout
+                )
+            )
+        )
         calc = [w for w in windows if window_id(w) in owned_window_ids]
         if not calc:
             if launch_pid is None and not owned_window_ids:
-                print("cleanup: cannot prove ownership (no launch pid, no owned "
-                      "windows); not closing anything")
+                print(
+                    "cleanup: cannot prove ownership (no launch pid, no owned "
+                    "windows); not closing anything"
+                )
             else:
                 print("cleanup: nothing left to close")
             return
@@ -309,14 +340,17 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
             "id": window_id(w),
             "pid": w.get("pid"),
         }
-        state = result_payload(client.tools_call(
-            "get_window_state", build_args(schemas.get("get_window_state"), wargs),
-            timeout=timeout))
+        state = result_payload(
+            client.tools_call(
+                "get_window_state",
+                build_args(schemas.get("get_window_state"), wargs),
+                timeout=timeout,
+            )
+        )
         button = find_button(collect_elements(state), CLOSE_BUTTON_LABELS)
         token = element_token(button)
         if token is None:
-            raise AssertionError(
-                "close-button element_token missing; refusing a name-only click")
+            raise AssertionError("close-button element_token missing; refusing a name-only click")
 
         def click_close(delivery_mode: str | None = None) -> None:
             click_args = dict(wargs)
@@ -324,15 +358,19 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
                 click_args[token[0]] = token[1]
             if delivery_mode:
                 click_args["delivery_mode"] = delivery_mode
-            client.tools_call(
-                "click", build_args(schemas.get("click"), click_args), timeout=30.0)
+            client.tools_call("click", build_args(schemas.get("click"), click_args), timeout=30.0)
 
         def owned_remaining() -> list:
             """§33: check cleanup only against owned window ids — a
             pre-existing calculator elsewhere on the desktop is not our
             concern and must not flip this run's result."""
-            wins = extract_windows(result_payload(client.tools_call(
-                "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
+            wins = extract_windows(
+                result_payload(
+                    client.tools_call(
+                        "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout
+                    )
+                )
+            )
             return [w2 for w2 in wins if window_id(w2) in owned_window_ids]
 
         need_escalation = False
@@ -349,8 +387,8 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
         if need_escalation:
             try:
                 client.tools_call(
-                    "bring_to_front", build_args(schemas.get("bring_to_front"), wargs),
-                    timeout=30.0)
+                    "bring_to_front", build_args(schemas.get("bring_to_front"), wargs), timeout=30.0
+                )
             except Exception:
                 pass  # best-effort wake-up; the foreground click may still work
             try:
@@ -365,11 +403,15 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
         else:
             remaining = []
         if remaining:
-            print(f"WARNING: cleanup clicked close but {len(remaining)} calculator "
-                  "window(s) remain — close manually")
+            print(
+                f"WARNING: cleanup clicked close but {len(remaining)} calculator "
+                "window(s) remain — close manually"
+            )
         else:
-            print("cleanup: window closed via title-bar close button "
-                  "(semantic click, background->foreground escalation)")
+            print(
+                "cleanup: window closed via title-bar close button "
+                "(semantic click, background->foreground escalation)"
+            )
     except Exception as exc:
         print(f"WARNING: cleanup failed (close the calculator manually): {exc}")
 
@@ -406,8 +448,9 @@ def run_qualification(args) -> int:
         print(f"start_session OK (session={session_id})")
 
         # 2. discover calculator app ---------------------------------------
-        apps_result = client.tools_call("list_apps", build_args(schemas.get("list_apps"), {}),
-                                        timeout=args.timeout)
+        apps_result = client.tools_call(
+            "list_apps", build_args(schemas.get("list_apps"), {}), timeout=args.timeout
+        )
         apps = extract_apps(result_payload(apps_result))
         matches = [a for a in apps if any(n in element_text(a).lower() for n in needles)]
         if not matches:
@@ -420,8 +463,15 @@ def run_qualification(args) -> int:
         print(f"discovered app: {app_name!r}")
 
         # 3. launch with ownership tracking (close only what we launch) ------
-        pre_windows = extract_windows(result_payload(client.tools_call(
-            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=args.timeout)))
+        pre_windows = extract_windows(
+            result_payload(
+                client.tools_call(
+                    "list_windows",
+                    build_args(schemas.get("list_windows"), {}),
+                    timeout=args.timeout,
+                )
+            )
+        )
         baseline_ids = {(w.get("pid"), window_id(w)) for w in pre_windows}
 
         launch_candidates = {
@@ -431,21 +481,29 @@ def run_qualification(args) -> int:
         }
         launch_candidates.setdefault("session", session_id)
         launch_result = client.tools_call(
-            "launch_app", build_args(schemas.get("launch_app"), launch_candidates),
-            timeout=args.timeout)
+            "launch_app",
+            build_args(schemas.get("launch_app"), launch_candidates),
+            timeout=args.timeout,
+        )
         launched = True
         launch_payload = result_payload(launch_result)
-        launch_pid = launch_payload.get("pid") if isinstance(
-            launch_payload.get("pid"), (int, str)) else None
+        launch_pid = (
+            launch_payload.get("pid") if isinstance(launch_payload.get("pid"), (int, str)) else None
+        )
         print(f"launch_app OK ({app_name!r}, launch pid={launch_pid})")
         time.sleep(args.settle)
 
         # 4. exact window — only one this run can prove it created -----------
-        post_windows = extract_windows(result_payload(client.tools_call(
-            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=args.timeout)))
-        new_windows = [
-            w for w in post_windows if (w.get("pid"), window_id(w)) not in baseline_ids
-        ]
+        post_windows = extract_windows(
+            result_payload(
+                client.tools_call(
+                    "list_windows",
+                    build_args(schemas.get("list_windows"), {}),
+                    timeout=args.timeout,
+                )
+            )
+        )
+        new_windows = [w for w in post_windows if (w.get("pid"), window_id(w)) not in baseline_ids]
         calc_windows = [
             w for w in new_windows if any(n in element_text(w).lower() for n in needles)
         ]
@@ -460,8 +518,9 @@ def run_qualification(args) -> int:
         # Ownership (§32): ONLY the explicitly selected target window is
         # owned — not every new window (another app may have opened one).
         owned_window_ids = {wid}
-        print(f"window selected (owned): {element_text(window)!r} "
-              f"(id={wid}, pid={window.get('pid')})")
+        print(
+            f"window selected (owned): {element_text(window)!r} (id={wid}, pid={window.get('pid')})"
+        )
 
         window_args = {
             "window_id": wid,
@@ -475,11 +534,15 @@ def run_qualification(args) -> int:
             "include_screenshot": True,
             **window_args,
         }
-        get_window = lambda: result_payload(client.tools_call(
-            "get_window_state",
-            build_args(schemas.get("get_window_state"), state_args),
-            timeout=args.timeout,
-        ))
+
+        def get_window():
+            return result_payload(
+                client.tools_call(
+                    "get_window_state",
+                    build_args(schemas.get("get_window_state"), state_args),
+                    timeout=args.timeout,
+                )
+            )
 
         # 5/6. structured elements + image content ----------------------------
         state = get_window()
@@ -498,7 +561,7 @@ def run_qualification(args) -> int:
             failures.append("get_window_state returned no MCP image content")
 
         # 7-10. semantic click sequence ---------------------------------------
-        for step, key in enumerate(("6", "*", "7", "="), start=7):
+        for key in ("6", "*", "7", "="):
             state = get_window()  # fresh state before each action (§51)
             elements = collect_elements(state)
             button = find_button(elements, BUTTONS[key])
@@ -512,11 +575,13 @@ def run_qualification(args) -> int:
                     "requires snapshot-bound semantic handles"
                 )
             click_candidates: dict = {token[0]: token[1]}
-            click_candidates.update({
-                "name": button.get("name"),
-                "text": button.get("name"),
-                **window_args,
-            })
+            click_candidates.update(
+                {
+                    "name": button.get("name"),
+                    "text": button.get("name"),
+                    **window_args,
+                }
+            )
             click_candidates = {k: v for k, v in click_candidates.items() if v is not None}
             click_args = build_args(schemas.get("click"), click_candidates)
             bad = [k for k in ("x", "y", "coordinate", "coordinates", "point") if k in click_args]
@@ -545,9 +610,14 @@ def run_qualification(args) -> int:
         # Test hygiene: close ONLY what this run launched, inside the session,
         # through the same semantic Cua path (see cleanup_launched_app).
         if client and launched:
-            cleanup_launched_app(client, schemas, needles, args.timeout,
-                                 launch_pid=launch_pid,
-                                 owned_window_ids=owned_window_ids)
+            cleanup_launched_app(
+                client,
+                schemas,
+                needles,
+                args.timeout,
+                launch_pid=launch_pid,
+                owned_window_ids=owned_window_ids,
+            )
         if client and session_started:
             try:
                 client.tools_call("end_session", {}, timeout=30.0)

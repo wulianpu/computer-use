@@ -9,6 +9,7 @@
     "skillSource": "libs/cua-driver/rust/Skills/cua-driver"
   },
   "projectionDigest": "sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29",
+  "pluginSurfaceDigest": "sha256:6ea5a6c5eca38ddb0fb102ad2cb108ec307cd204973dd6e14717c0d67053586f",
   "transforms": [
     {
       "id": "normalize-agent-skills-frontmatter",

@@ -17,20 +17,30 @@ import verify_projection  # noqa: E402
 
 
 def make_repo(tmp_path: Path) -> Path:
-    """A scratch repo sharing the real lock + raw upstream source."""
+    """A scratch repo sharing the real manifests, lock + raw upstream source."""
     root = tmp_path / "repo"
     (root / "upstream").mkdir(parents=True)
+    shutil.copy(ROOT / "plugin.json", root / "plugin.json")
+    shutil.copy(ROOT / "mcp.json", root / "mcp.json")
     shutil.copy(ROOT / "upstream" / "cua.lock.json", root / "upstream" / "cua.lock.json")
     shutil.copytree(
         ROOT / "upstream" / "source" / "cua-driver",
         root / "upstream" / "source" / "cua-driver",
     )
-    (root / "upstream" / "compatibility.json").write_text(json.dumps({
-        "candidate": {"version": "0.24.0", "tag": "cua-driver-rs-v0.24.0",
-                      "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520"},
-        "verified": [],
-        "unsupported": [],
-    }), encoding="utf-8")
+    (root / "upstream" / "compatibility.json").write_text(
+        json.dumps(
+            {
+                "candidate": {
+                    "version": "0.24.0",
+                    "tag": "cua-driver-rs-v0.24.0",
+                    "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+                },
+                "verified": [],
+                "unsupported": [],
+            }
+        ),
+        encoding="utf-8",
+    )
     return root
 
 
@@ -74,11 +84,9 @@ class TestProjection:
         _, upstream_body = projection.parse_upstream_frontmatter(upstream)
         after_projected_fm = projected.split("---\n", 2)[2]
         projected_body = after_projected_fm.split("-->\n", 1)[1]
-        rebuilt_upstream = (
-            upstream_body.replace(
-                projection.EXPECTED_TRANSPORT_BLOCK,
-                projection.TRANSPORT_SECTION_REPLACEMENT,
-            )
+        rebuilt_upstream = upstream_body.replace(
+            projection.EXPECTED_TRANSPORT_BLOCK,
+            projection.TRANSPORT_SECTION_REPLACEMENT,
         )
         rebuilt_upstream = projection.exclude_host_specific_setup(rebuilt_upstream)
         rebuilt_upstream = projection.transform_shell_section(rebuilt_upstream)
@@ -212,24 +220,30 @@ class TestProjectionVerification:
         root = make_repo(tmp_path)
         report = projection.project(root)
         # A receipt bound to an older projection digest.
-        (root / "upstream" / "compatibility.json").write_text(json.dumps({
-            "candidate": {"version": "0.24.0", "tag": "t", "commit": "4b3396d"},
-            "verified": [{
-                "version": "0.24.0",
-                "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
-                "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
-                "projectionMode": "raw-skill-normalized",
-                "projectionDigest": "sha256:" + "0" * 64,
-                "platform": "windows-x86_64",
-            }],
-            "unsupported": [],
-        }), encoding="utf-8")
-        failed = {
-            c.name: c.detail
-            for c in verify_projection.run_checks(root) if not c.ok
-        }
-        assert any("receipt valid" in name and "projectionDigest" in detail
-                   for name, detail in failed.items())
+        (root / "upstream" / "compatibility.json").write_text(
+            json.dumps(
+                {
+                    "candidate": {"version": "0.24.0", "tag": "t", "commit": "4b3396d"},
+                    "verified": [
+                        {
+                            "version": "0.24.0",
+                            "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+                            "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
+                            "projectionMode": "raw-skill-normalized",
+                            "projectionDigest": "sha256:" + "0" * 64,
+                            "platform": "windows-x86_64",
+                        }
+                    ],
+                    "unsupported": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        failed = {c.name: c.detail for c in verify_projection.run_checks(root) if not c.ok}
+        assert any(
+            "receipt valid" in name and "projectionDigest" in detail
+            for name, detail in failed.items()
+        )
         # A manual edit to the skill tree also breaks regeneration equality.
         skill = root / "skills" / "cua-driver" / "SKILL.md"
         skill.write_text(skill.read_text(encoding="utf-8") + "\nmanual edit\n", encoding="utf-8")
@@ -244,13 +258,9 @@ class TestProjectionVerification:
         proj = json.loads(proj_path.read_text(encoding="utf-8"))
         proj["mode"] = "upstream-portable"
         proj_path.write_text(json.dumps(proj, indent=2), encoding="utf-8")
-        failed = {
-            c.name: c.detail
-            for c in verify_projection.run_checks(root) if not c.ok
-        }
+        failed = {c.name: c.detail for c in verify_projection.run_checks(root) if not c.ok}
         assert any(
-            "upstream-portable" in name and "zero content transforms" in name
-            for name in failed
+            "upstream-portable" in name and "zero content transforms" in name for name in failed
         )
         # …and passes when the content transforms are gone.
         proj["transforms"] = [
@@ -270,3 +280,29 @@ class TestProjectionVerification:
             c for c in checks if "upstream-portable" in c.name and "zero content" in c.name
         ]
         assert portable_ok and portable_ok[0].ok
+
+
+class TestPluginSurfaceDigest:
+    def test_projection_json_records_surface_digest(self, tmp_path):
+        root = make_repo(tmp_path)
+        projection.project(root)
+        proj = json.loads((root / "upstream" / "projection.json").read_text(encoding="utf-8"))
+        assert proj["pluginSurfaceDigest"] == projection.plugin_surface_digest(root)
+
+    def test_manifest_change_changes_surface_digest(self, tmp_path):
+        root = make_repo(tmp_path)
+        projection.project(root)
+        before = projection.plugin_surface_digest(root)
+        manifest = root / "plugin.json"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace("0.1.0", "0.2.0"),
+            encoding="utf-8",
+        )
+        assert projection.plugin_surface_digest(root) != before
+
+    def test_missing_manifest_is_a_hard_error(self, tmp_path):
+        root = make_repo(tmp_path)
+        projection.project(root)
+        (root / "plugin.json").unlink()
+        with pytest.raises(projection.ProjectionError):
+            projection.plugin_surface_digest(root)

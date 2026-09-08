@@ -32,14 +32,20 @@ def make_repo(tmp_path: Path) -> Path:
         data = f"# {name}\nupstream content\n".encode()
         (source / name).write_bytes(data)
         hashes[name] = hashlib.sha256(data).hexdigest()
-    (root / "upstream" / "cua.lock.json").write_text(json.dumps({
-        "repository": "trycua/cua",
-        "version": "0.24.0",
-        "tag": "cua-driver-rs-v0.24.0",
-        "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
-        "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
-        "files": {name: {"sha256": digest} for name, digest in hashes.items()},
-    }, indent=2), encoding="utf-8")
+    (root / "upstream" / "cua.lock.json").write_text(
+        json.dumps(
+            {
+                "repository": "trycua/cua",
+                "version": "0.24.0",
+                "tag": "cua-driver-rs-v0.24.0",
+                "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+                "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
+                "files": {name: {"sha256": digest} for name, digest in hashes.items()},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (root / "THIRD_PARTY_NOTICES.md").write_text(NOTICES, encoding="utf-8")
     (root / "licenses").mkdir()
     (root / "licenses" / "CUA-LICENSE.md").write_text(LICENSE, encoding="utf-8")

@@ -49,44 +49,58 @@ class TestOfficialSchemaIsTheAuthority:
         # 'links' is NOT a 1.0.0 field; the pinned schema catches it.
         root = make_repo(tmp_path)
         rewrite(root, "plugin.json", lambda d: d.update({"links": {"x": "https://y"}}))
-        assert any("official Agent Plugins schema" in name
-                   for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "official Agent Plugins schema" in name
+            for name in failures(validate_plugin.run_checks(root))
+        )
 
     def test_accepts_extensions_field(self, tmp_path):
         # 'extensions' IS a 1.0.0 field.
         root = make_repo(tmp_path)
         rewrite(root, "plugin.json", lambda d: d.update({"extensions": {"x": {"y": 1}}}))
-        schema_failures = [n for n in failures(validate_plugin.run_checks(root))
-                           if "official Agent Plugins schema" in n]
+        schema_failures = [
+            n
+            for n in failures(validate_plugin.run_checks(root))
+            if "official Agent Plugins schema" in n
+        ]
         assert schema_failures == []
 
     def test_rejects_unknown_top_level_mcp_key(self, tmp_path):
         root = make_repo(tmp_path)
         rewrite(root, "mcp.json", lambda d: d.update({"servers": {}}))
-        assert any("mcp.json conforms" in name for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "mcp.json conforms" in name for name in failures(validate_plugin.run_checks(root))
+        )
 
     def test_rejects_unknown_server_entry_key(self, tmp_path):
         root = make_repo(tmp_path)
+
         def mutate(doc):
             doc["mcpServers"]["cua-driver"]["stdio"] = True
+
         rewrite(root, "mcp.json", mutate)
-        assert any("mcp.json conforms" in name for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "mcp.json conforms" in name for name in failures(validate_plugin.run_checks(root))
+        )
 
 
 class TestMcpJsonIsDeterministic:
     def test_template_equality_enforced(self, tmp_path):
         root = make_repo(tmp_path)
-        rewrite(root, "mcp.json",
-                lambda d: d["mcpServers"]["cua-driver"].update({"env": {"X": "1"}}))
+        rewrite(
+            root, "mcp.json", lambda d: d["mcpServers"]["cua-driver"].update({"env": {"X": "1"}})
+        )
         result = failures(validate_plugin.run_checks(root))
         assert any("deterministic generator template" in name for name in result)
 
     def test_rejects_wrapper_command(self, tmp_path):
         root = make_repo(tmp_path)
+
         def mutate(doc):
             entry = doc["mcpServers"]["cua-driver"]
             entry["command"] = "bash"
             entry["args"] = ["-c", "cua-driver mcp"]
+
         rewrite(root, "mcp.json", mutate)
         result = failures(validate_plugin.run_checks(root))
         assert any("command directly invokes cua-driver" in name for name in result)
@@ -97,15 +111,21 @@ class TestProjectedSkillConformance:
     def test_skill_frontmatter_is_agent_skills_conformant(self):
         # The real (projected) skill passes every structural rule.
         result = failures(validate_plugin.run_checks(ROOT))
-        assert not any("skill name" in n or "frontmatter" in n or "description" in n
-                       or "compatibility" in n or "metadata" in n
-                       for n in result)
+        assert not any(
+            "skill name" in n
+            or "frontmatter" in n
+            or "description" in n
+            or "compatibility" in n
+            or "metadata" in n
+            for n in result
+        )
 
     def test_rejects_non_conformant_skill_name(self, tmp_path):
         root = make_repo(tmp_path)
         skill = root / "skills" / "cua-driver" / "SKILL.md"
         text = skill.read_text(encoding="utf-8").replace(
-            'name: "cua-driver"', 'name: "cua--driver-"', 1)
+            'name: "cua-driver"', 'name: "cua--driver-"', 1
+        )
         skill.write_text(text, encoding="utf-8")
         result = failures(validate_plugin.run_checks(root))
         assert any("Agent-Skills-conformant" in name for name in result)
@@ -116,7 +136,9 @@ class TestProjectedSkillConformance:
         skill = root / "skills" / "cua-driver" / "SKILL.md"
         text = skill.read_text(encoding="utf-8").replace("GENERATED FILE", "EDITED FILE", 1)
         skill.write_text(text, encoding="utf-8")
-        assert any("marked as generated" in name for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "marked as generated" in name for name in failures(validate_plugin.run_checks(root))
+        )
 
     def test_rejects_legacy_references_model(self, tmp_path):
         root = make_repo(tmp_path)
@@ -130,22 +152,26 @@ class TestProjectedSkillConformance:
     def test_rejects_missing_companion(self, tmp_path):
         root = make_repo(tmp_path)
         (root / "skills" / "cua-driver" / "BROWSER.md").unlink()
-        assert any("projected skill file set" in name
-                   for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "projected skill file set" in name
+            for name in failures(validate_plugin.run_checks(root))
+        )
 
 
 class TestProjectPolicy:
     def test_rejects_forbidden_manifest_key(self, tmp_path):
         root = make_repo(tmp_path)
         rewrite(root, "plugin.json", lambda d: d.update({"cuaVersion": "0.24.0"}))
-        assert any("forbidden manifest keys" in name
-                   for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "forbidden manifest keys" in name for name in failures(validate_plugin.run_checks(root))
+        )
 
     def test_rejects_second_skill_directory(self, tmp_path):
         root = make_repo(tmp_path)
         (root / "skills" / "other-skill").mkdir()
-        assert any("skills contains only" in name
-                   for name in failures(validate_plugin.run_checks(root)))
+        assert any(
+            "skills contains only" in name for name in failures(validate_plugin.run_checks(root))
+        )
 
 
 class TestFrontmatterParser:

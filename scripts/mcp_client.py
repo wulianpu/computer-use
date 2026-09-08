@@ -34,7 +34,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-__all__ = ["McpError", "McpTimeout", "McpConnectionError", "McpStdioClient"]
+__all__ = ["McpConnectionError", "McpError", "McpStdioClient", "McpTimeout"]
 
 CLIENT_NAME = "computer-use-dev"
 CLIENT_VERSION = "0.1.0"
@@ -135,7 +135,7 @@ class McpStdioClient:
                 pending.event.set()
             self._pending.clear()
 
-    def __enter__(self) -> "McpStdioClient":
+    def __enter__(self) -> McpStdioClient:
         self.start()
         return self
 
@@ -218,7 +218,13 @@ class McpStdioClient:
         self._send({"jsonrpc": "2.0", "method": method, "params": params or {}})
 
     def initialize(self, *, timeout: float = 30.0) -> dict:
-        """Handshake with protocol-version fallback for older servers."""
+        """Handshake: initialize -> validate negotiated version ->
+        notifications/initialized (lifecycle MUST in MCP 2025-06-18).
+
+        Newest-known protocol is offered first; a server that rejects a
+        version gets the next older one. A server that negotiates a
+        version this client does not know is a hard error (no guessing).
+        """
         last_error: Exception | None = None
         for version in PROTOCOL_VERSIONS:
             try:
@@ -238,11 +244,17 @@ class McpStdioClient:
                 continue  # server rejected this version; try the next older one
             if not isinstance(result, dict):
                 raise McpConnectionError("malformed initialize result")
-            self.negotiated_protocol_version = result.get(
-                "protocolVersion", version
-            )
+            negotiated = result.get("protocolVersion", version)
+            if negotiated not in PROTOCOL_VERSIONS:
+                raise McpConnectionError(
+                    f"server negotiated unsupported protocol version {negotiated!r} "
+                    f"(client supports {PROTOCOL_VERSIONS})"
+                )
+            self.negotiated_protocol_version = negotiated
             self.server_info = result.get("serverInfo")
-            self.notify("initialized")
+            # MCP lifecycle MUST: the client sends notifications/initialized
+            # after receiving the initialize result, before normal operation.
+            self.notify("notifications/initialized")
             return result
         raise McpConnectionError(
             f"server rejected every supported protocol version ({PROTOCOL_VERSIONS}); "
@@ -252,11 +264,21 @@ class McpStdioClient:
     # ------------------------------------------------------------- helpers
 
     def tools_list(self, *, timeout: float = 30.0) -> list[dict]:
-        result = self.request("tools/list", {}, timeout=timeout)
-        tools = result.get("tools") if isinstance(result, dict) else None
-        if not isinstance(tools, list):
-            raise McpConnectionError(f"malformed tools/list result: {result!r}")
-        return tools
+        """List tools, following nextCursor pagination until exhausted."""
+        tools: list[dict] = []
+        cursor: str | None = None
+        while True:
+            params = {"cursor": cursor} if cursor else {}
+            result = self.request("tools/list", params, timeout=timeout)
+            if not isinstance(result, dict):
+                raise McpConnectionError(f"malformed tools/list result: {result!r}")
+            page = result.get("tools")
+            if not isinstance(page, list):
+                raise McpConnectionError(f"malformed tools/list page: {result!r}")
+            tools.extend(page)
+            cursor = result.get("nextCursor")
+            if not cursor:
+                return tools
 
     def tools_call(
         self, name: str, arguments: dict | None = None, *, timeout: float = 120.0

@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import mcp_client  # noqa: E402  (development tool dependency)
+import mcp_client
 
 SNAPSHOT_FIELDS = ("name", "description", "inputSchema", "outputSchema", "annotations")
 VERSION_OUTPUT_PATTERN = re.compile(r"(\d+\.\d+\.\d+[-0-9A-Za-z.+]*)")
@@ -42,12 +42,17 @@ VERSION_OUTPUT_PATTERN = re.compile(r"(\d+\.\d+\.\d+[-0-9A-Za-z.+]*)")
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--snapshot", action="store_true",
-                        help="write tests/contract/cua-tools.snapshot.json")
-    parser.add_argument("--allow-version-mismatch", action="store_true",
-                        help="downgrade a candidate version mismatch from FAIL to WARN")
-    parser.add_argument("--command", default="cua-driver",
-                        help="cua-driver executable (default: PATH lookup)")
+    parser.add_argument(
+        "--snapshot", action="store_true", help="write tests/contract/cua-tools.snapshot.json"
+    )
+    parser.add_argument(
+        "--allow-version-mismatch",
+        action="store_true",
+        help="downgrade a candidate version mismatch from FAIL to WARN",
+    )
+    parser.add_argument(
+        "--command", default="cua-driver", help="cua-driver executable (default: PATH lookup)"
+    )
     parser.add_argument("--root", default=None, help="repository root")
     parser.add_argument("--timeout", type=float, default=60.0)
     return parser.parse_args(argv)
@@ -67,8 +72,10 @@ def main(argv=None) -> int:
     resolved = shutil.which(args.command)
     if not resolved:
         print(f"FAIL: executable {args.command!r} not found on PATH.")
-        print("      The plugin requires a user/host-installed cua-driver; "
-              "it never installs Cua itself.")
+        print(
+            "      The plugin requires a user/host-installed cua-driver; "
+            "it never installs Cua itself."
+        )
         return 1
     print(f"found: {resolved}")
 
@@ -85,10 +92,12 @@ def main(argv=None) -> int:
     runtime_version = match.group(1) if match else None
     print(f"cua-driver --version: {version_text!r} -> {runtime_version or 'unparsed'}")
 
-    candidate = json.loads(
-        (root / "upstream" / "compatibility.json").read_text(encoding="utf-8")
-    )["candidate"]
-    print(f"candidate (from upstream/compatibility.json): {candidate['version']} ({candidate['tag']})")
+    candidate = json.loads((root / "upstream" / "compatibility.json").read_text(encoding="utf-8"))[
+        "candidate"
+    ]
+    print(
+        f"candidate (from upstream/compatibility.json): {candidate['version']} ({candidate['tag']})"
+    )
     if runtime_version is None:
         warnings.append("cua-driver --version output could not be parsed")
     elif runtime_version != candidate["version"]:
@@ -107,8 +116,9 @@ def main(argv=None) -> int:
         with mcp_client.McpStdioClient(resolved, ["mcp"]) as client:
             init = client.initialize(timeout=args.timeout)
             info = init.get("serverInfo", {})
-            print(f"MCP handshake OK: serverInfo={info} "
-                  f"protocol={client.negotiated_protocol_version}")
+            print(
+                f"MCP handshake OK: serverInfo={info} protocol={client.negotiated_protocol_version}"
+            )
             tools = client.tools_list(timeout=args.timeout)
             stderr_tail = client.stderr_text.strip().splitlines()[-3:]
             if stderr_tail:

@@ -106,11 +106,7 @@ def check_shape(entries) -> set[str]:
     file-becomes-directory change.
     """
     dirs = sorted(name for name, kind in entries if kind == "dir")
-    files = {
-        name
-        for name, kind in entries
-        if kind == "file" and not name.startswith(".")
-    }
+    files = {name for name, kind in entries if kind == "file" and not name.startswith(".")}
     expected = set(EXPECTED_FILES)
     missing = sorted(expected - files)
     extra = sorted(files - expected)
@@ -137,7 +133,7 @@ def _parse_ls_tree(out: str, path: str) -> list[tuple[str, str]]:
         if not obj_path.startswith(prefix) or obj_path.rstrip("/") == path.rstrip("/"):
             continue  # the directory row itself or unrelated rows
         kind = parts[1]  # "blob" or "tree"
-        entries.append((obj_path[len(prefix):], "dir" if kind == "tree" else "file"))
+        entries.append((obj_path[len(prefix) :], "dir" if kind == "tree" else "file"))
     return entries
 
 
@@ -177,12 +173,12 @@ hand-edited.
 
 ## Cua Driver — trycua/cua
 
-- Upstream repository: https://github.com/{lock['repository']}
+- Upstream repository: https://github.com/{lock["repository"]}
 - Component: Cua Driver Agent Skill pack + repository license
-- Version: {lock['version']}
-- Tag: {lock['tag']}
-- Commit: {lock['commit']}
-- Source path in upstream repository: {lock['skillSource']}
+- Version: {lock["version"]}
+- Tag: {lock["tag"]}
+- Commit: {lock["commit"]}
+- Source path in upstream repository: {lock["skillSource"]}
 - License: MIT — © Cua AI (full text in `licenses/CUA-LICENSE.md`)
 
 The raw source and its projected skill are distributed under the upstream
@@ -259,15 +255,11 @@ class Upstream:
 
     def resolve_tag(self, tag: str) -> str:
         try:
-            payload = json.loads(
-                self._http(f"{self.api_base}/commits/{urllib.parse.quote(tag)}")
-            )
+            payload = json.loads(self._http(f"{self.api_base}/commits/{urllib.parse.quote(tag)}"))
             return payload["sha"]
         except SyncError:
             pass  # fall through to git
-        out = self._git(
-            "ls-remote", self.repo_url, f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"
-        )
+        out = self._git("ls-remote", self.repo_url, f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}")
         peeled = direct = ""
         for line in out.splitlines():
             sha, _, ref = line.partition("\t")
@@ -292,14 +284,11 @@ class Upstream:
         new subdirectories.
         """
         try:
-            payload = json.loads(
-                self._http(f"{self.api_base}/contents/{path}?ref={commit}")
-            )
+            payload = json.loads(self._http(f"{self.api_base}/contents/{path}?ref={commit}"))
             if not isinstance(payload, list):
                 raise SyncError(f"Unexpected contents payload for {path}")
             return [
-                (item["name"], "dir" if item.get("type") == "dir" else "file")
-                for item in payload
+                (item["name"], "dir" if item.get("type") == "dir" else "file") for item in payload
             ]
         except SyncError:
             pass  # fall through to git
@@ -308,9 +297,15 @@ class Upstream:
             self._git("init", "--quiet", str(tmp))
             self._git("-C", str(tmp), "remote", "add", "origin", self.repo_url)
             self._git(
-                "-C", str(tmp), "fetch", "--quiet",
-                "--depth", "1", "--filter=blob:none",
-                "origin", commit,
+                "-C",
+                str(tmp),
+                "fetch",
+                "--quiet",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "origin",
+                commit,
             )
             out = self._git("-C", str(tmp), "ls-tree", commit, "--", f"{path.rstrip('/')}/")
             return _parse_ls_tree(out, path)
@@ -391,9 +386,7 @@ def main(argv=None) -> int:
     # --- source path policy (§26): never silently fall back to a new path ---
     source_path = args.source_path
     if source_path is None:
-        source_path = (
-            existing_lock["skillSource"] if existing_lock else DEFAULT_SOURCE_PATH
-        )
+        source_path = existing_lock["skillSource"] if existing_lock else DEFAULT_SOURCE_PATH
     if existing_lock and source_path != existing_lock["skillSource"]:
         if not args.allow_source_path_change:
             raise SyncError(
@@ -419,8 +412,7 @@ def main(argv=None) -> int:
             raise
     if args.commit and args.commit.lower() != commit.lower():
         raise SyncError(
-            f"--commit {args.commit} does not match tag {args.tag} "
-            f"(resolved to {commit})."
+            f"--commit {args.commit} does not match tag {args.tag} (resolved to {commit})."
         )
     print(f"resolved {args.tag} -> {commit}")
 

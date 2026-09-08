@@ -23,12 +23,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import project_cua_skill as projection  # noqa: E402  (same deterministic generator)
+import project_cua_skill as projection
 
 LOCK_REL = Path("upstream/cua.lock.json")
 PROJECTION_REL = Path("upstream/projection.json")
@@ -44,7 +45,7 @@ CONTENT_TRANSFORM_IDS = {
     "exclude-host-specific-mcp-setup-guidance",
     "remove-plugin-side-native-installer-execution",
 }
-PROJECTED_FILES = ("SKILL.md",) + projection.COMPANIONS
+PROJECTED_FILES = ("SKILL.md", *projection.COMPANIONS)
 
 
 @dataclass
@@ -86,8 +87,10 @@ def run_checks(root: Path) -> list[Check]:
         for name in projection.EXPECTED_FILES:
             path = source_dir / name
             expected_hash = lock.get("files", {}).get(name, {}).get("sha256", "")
-            ok = path.is_file() and expected_hash and (
-                projection.sha256_hex(path.read_bytes()) == expected_hash
+            ok = (
+                path.is_file()
+                and expected_hash
+                and (projection.sha256_hex(path.read_bytes()) == expected_hash)
             )
             add(f"raw source hash == lock: {name}", ok, "" if ok else "mismatch/missing")
     else:
@@ -104,9 +107,9 @@ def run_checks(root: Path) -> list[Check]:
             scratch = Path(tmp)
             (scratch / SOURCE_REL).mkdir(parents=True)
             for name in projection.EXPECTED_FILES:
-                (scratch / SOURCE_REL / name).write_bytes(
-                    (source_dir / name).read_bytes()
-                )
+                (scratch / SOURCE_REL / name).write_bytes((source_dir / name).read_bytes())
+            for rel in ("plugin.json", "mcp.json"):
+                shutil.copy(root / rel, scratch / rel)
             (scratch / "upstream").mkdir(parents=True, exist_ok=True)
             (scratch / LOCK_REL).write_text(
                 (root / LOCK_REL).read_text(encoding="utf-8"), encoding="utf-8"
@@ -127,9 +130,7 @@ def run_checks(root: Path) -> list[Check]:
     # -- skill tree file set ------------------------------------------------
     skill_dir = root / SKILL_DIR_REL
     if skill_dir.is_dir():
-        tree = sorted(
-            str(p.relative_to(skill_dir)) for p in skill_dir.rglob("*") if p.is_file()
-        )
+        tree = sorted(str(p.relative_to(skill_dir)) for p in skill_dir.rglob("*") if p.is_file())
         add(
             "skill tree == expected projected file set",
             tree == sorted(PROJECTED_FILES),
@@ -153,21 +154,40 @@ def run_checks(root: Path) -> list[Check]:
             }
             add("projection.json source == lock", source_ok)
             mode = proj.get("mode")
-            add("projection mode valid", mode in ("raw-skill-normalized", "upstream-portable"),
-                repr(mode))
+            add(
+                "projection mode valid",
+                mode in ("raw-skill-normalized", "upstream-portable"),
+                repr(mode),
+            )
             transforms = proj.get("transforms", [])
             transform_ids = {t.get("id") for t in transforms}
             if mode == "upstream-portable":
                 content_transforms = transform_ids & CONTENT_TRANSFORM_IDS
-                add("upstream-portable mode has zero content transforms",
-                    not content_transforms, f"unexpected: {sorted(content_transforms)}")
+                add(
+                    "upstream-portable mode has zero content transforms",
+                    not content_transforms,
+                    f"unexpected: {sorted(content_transforms)}",
+                )
             digest_ok = digest is not None and proj.get("projectionDigest") == digest
-            add("projection.json digest == recomputed digest", digest_ok,
-                f"{proj.get('projectionDigest')} vs {digest}")
+            add(
+                "projection.json digest == recomputed digest",
+                digest_ok,
+                f"{proj.get('projectionDigest')} vs {digest}",
+            )
+            try:
+                surface = projection.plugin_surface_digest(root)
+            except projection.ProjectionError as exc:
+                surface = None
+                add("plugin surface digest computable", False, str(exc))
+            else:
+                surface_ok = proj.get("pluginSurfaceDigest") == surface
+                add(
+                    "projection.json surface digest == recomputed surface digest",
+                    surface_ok,
+                    f"{proj.get('pluginSurfaceDigest')} vs {surface}",
+                )
             report_disk = _load_json(root / REPORT_REL) if (root / REPORT_REL).is_file() else None
-            content_files = {
-                t["file"] for t in transforms if t["id"] in CONTENT_TRANSFORM_IDS
-            }
+            content_files = {t["file"] for t in transforms if t["id"] in CONTENT_TRANSFORM_IDS}
             add(
                 "projection-report.json matches projection.json",
                 report_disk is not None
@@ -184,8 +204,11 @@ def run_checks(root: Path) -> list[Check]:
         try:
             compat = _load_json(root / COMPAT_REL)
             proj_mode = None
+            proj_surface = None
             if (root / PROJECTION_REL).is_file():
-                proj_mode = _load_json(root / PROJECTION_REL).get("mode")
+                proj_doc = _load_json(root / PROJECTION_REL)
+                proj_mode = proj_doc.get("mode")
+                proj_surface = proj_doc.get("pluginSurfaceDigest")
             for entry in compat.get("verified", []):
                 label = f"receipt valid: {entry.get('platform', '?')} {entry.get('version', '?')}"
                 mismatches = []
@@ -199,12 +222,14 @@ def run_checks(root: Path) -> list[Check]:
                     mismatches.append("projectionDigest")
                 if proj_mode is not None and entry.get("projectionMode") != proj_mode:
                     mismatches.append("projectionMode")
+                if proj_surface is not None and entry.get("pluginSurfaceDigest") != proj_surface:
+                    mismatches.append("pluginSurfaceDigest")
                 add(
                     label,
                     not mismatches,
                     "invalidated (re-qualify): " + ", ".join(mismatches)
                     if mismatches
-                    else "matches pinned source + projection",
+                    else "matches pinned source + projection + surface",
                 )
         except json.JSONDecodeError as exc:
             add("compatibility.json parses", False, str(exc))

@@ -12,7 +12,6 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import sync_cua  # noqa: E402
 
-
 # ------------------------------------------------------------ pure helpers
 
 
@@ -35,7 +34,7 @@ class TestCheckShape:
 
     def test_extra_file_fails_closed(self):
         with pytest.raises(sync_cua.SyncError, match="shape changed"):
-            sync_cua.check_shape(self.files() + [("HISTORY.md", "file")])
+            sync_cua.check_shape([*self.files(), ("HISTORY.md", "file")])
 
     def test_missing_file_fails_closed(self):
         files = [(n, "file") for n in sync_cua.EXPECTED_FILES if n != "BROWSER.md"]
@@ -43,7 +42,7 @@ class TestCheckShape:
             sync_cua.check_shape(files)
 
     def test_new_upstream_directory_fails_closed(self):
-        entries = self.files() + [("references", "dir")]
+        entries = [*self.files(), ("references", "dir")]
         with pytest.raises(sync_cua.SyncError, match=r"directories=\['references'\]"):
             sync_cua.check_shape(entries)
 
@@ -110,8 +109,9 @@ def _make_repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "upstream").mkdir(parents=True)
     (root / "upstream" / "compatibility.json").write_text(
-        json.dumps({"candidate": {"version": "0.23.0", "tag": "old"},
-                    "verified": [], "unsupported": []}),
+        json.dumps(
+            {"candidate": {"version": "0.23.0", "tag": "old"}, "verified": [], "unsupported": []}
+        ),
         encoding="utf-8",
     )
     return root
@@ -121,10 +121,14 @@ class TestMainEndToEnd:
     def test_full_sync_writes_source_cache_and_lock_only(self, tmp_path, monkeypatch):
         root = _make_repo(tmp_path)
         monkeypatch.setattr(sync_cua, "Upstream", FakeUpstream)
-        rc = sync_cua.main([
-            "--tag", "cua-driver-rs-v0.24.0",
-            "--root", str(root),
-        ])
+        rc = sync_cua.main(
+            [
+                "--tag",
+                "cua-driver-rs-v0.24.0",
+                "--root",
+                str(root),
+            ]
+        )
         assert rc == 0
 
         lock = json.loads((root / "upstream" / "cua.lock.json").read_text(encoding="utf-8"))
@@ -169,18 +173,31 @@ class TestMainEndToEnd:
         assert sync_cua.main(["--tag", "cua-driver-rs-v0.24.0", "--root", str(root)]) == 0
         # A second sync pointing at a different path must fail closed.
         with pytest.raises(sync_cua.SyncError, match="Manual review required"):
-            sync_cua.main([
-                "--tag", "cua-driver-rs-v0.24.0",
-                "--root", str(root),
-                "--source-path", "AgentPlugin/skills/cua-driver",
-            ])
+            sync_cua.main(
+                [
+                    "--tag",
+                    "cua-driver-rs-v0.24.0",
+                    "--root",
+                    str(root),
+                    "--source-path",
+                    "AgentPlugin/skills/cua-driver",
+                ]
+            )
         # …and succeed only with the explicit acknowledgement.
-        assert sync_cua.main([
-            "--tag", "cua-driver-rs-v0.24.0",
-            "--root", str(root),
-            "--source-path", "AgentPlugin/skills/cua-driver",
-            "--allow-source-path-change",
-        ]) == 0
+        assert (
+            sync_cua.main(
+                [
+                    "--tag",
+                    "cua-driver-rs-v0.24.0",
+                    "--root",
+                    str(root),
+                    "--source-path",
+                    "AgentPlugin/skills/cua-driver",
+                    "--allow-source-path-change",
+                ]
+            )
+            == 0
+        )
         lock = json.loads((root / "upstream" / "cua.lock.json").read_text(encoding="utf-8"))
         assert lock["skillSource"] == "AgentPlugin/skills/cua-driver"
 
@@ -188,8 +205,13 @@ class TestMainEndToEnd:
         root = _make_repo(tmp_path)
         monkeypatch.setattr(sync_cua, "Upstream", FakeUpstream)
         with pytest.raises(sync_cua.SyncError, match="does not match"):
-            sync_cua.main([
-                "--tag", "cua-driver-rs-v0.24.0",
-                "--root", str(root),
-                "--commit", "deadbeef",
-            ])
+            sync_cua.main(
+                [
+                    "--tag",
+                    "cua-driver-rs-v0.24.0",
+                    "--root",
+                    str(root),
+                    "--commit",
+                    "deadbeef",
+                ]
+            )

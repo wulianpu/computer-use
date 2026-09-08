@@ -19,6 +19,18 @@ dev = [
     "pytest>=8.0",
     "jsonschema>=4.21",
     "PyYAML>=6.0",
+    "ruff==0.16.6",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Lightweight, deliberately: core pyflakes/pycodestyle + imports + bugbear +
+# pyupgrade + ruff-native. No heavy lint/type framework for this small codebase.
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "RUF"]
+ignore = [
+  "RUF001", "RUF002", "RUF003",  # the multiplication sign in "6 × 7 = 42" is intentional
 ]
 
 [tool.setuptools]
