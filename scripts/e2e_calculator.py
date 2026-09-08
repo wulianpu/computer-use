@@ -32,18 +32,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mcp_client  # noqa: E402  (development tool dependency)
 
-# Button label candidates per platform (Windows Calculator uses "Six",
-# "Multiply", "Equals"; macOS/Linux usually "6", "×", "=").
+# Button label candidates per platform/locale (English Windows uses "Six",
+# "Multiply", "Equals"; zh-CN uses "六", "乘以", "等于"; others "6", "×", "=").
 BUTTONS: dict[str, tuple[str, ...]] = {
-    "6": ("6", "six"),
-    "*": ("×", "x", "*", "multiply", "times", "multiply by"),
-    "7": ("7", "seven"),
-    "=": ("=", "equals", "equal", "is equal to"),
+    "6": ("6", "six", "六"),
+    "*": ("×", "x", "*", "multiply", "times", "multiply by", "乘以", "乘"),
+    "7": ("7", "seven", "七"),
+    "=": ("=", "equals", "equal", "is equal to", "等于"),
 }
 CLICKABLE_HINTS = ("button", "press", "invoke", "click")
 TOKEN_KEYS = ("element_token", "token", "element", "ref", "ax_token", "elementId", "element_id", "id")
 TEXT_KEYS = ("name", "title", "label", "value", "text", "role")
-DISPLAY_HINTS = ("display", "result", "expression")
+DISPLAY_HINTS = ("display", "result", "expression", "显示", "结果")
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -51,8 +51,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--yes", action="store_true",
                         help="actually drive the desktop (without it: dry run)")
     parser.add_argument("--command", default="cua-driver")
-    parser.add_argument("--app", default="calc",
-                        help="substring used to discover the calculator app (default: 'calc')")
+    parser.add_argument("--app", default="calc,计算器",
+                        help="comma-separated substrings used to discover the calculator app "
+                             "(default: 'calc,计算器' — English and zh-CN system names)")
     parser.add_argument("--expect", default="42", help="expected displayed result")
     parser.add_argument("--settle", type=float, default=1.0,
                         help="seconds to wait after launch / each click")
@@ -105,14 +106,23 @@ def looks_clickable(element: dict) -> bool:
     return any(hint in role or hint in text for hint in CLICKABLE_HINTS)
 
 
+def _element_labels(element: dict) -> set[str]:
+    """Normalized label set: each text field separately plus the combined text."""
+    labels = set()
+    for key in TEXT_KEYS:
+        value = element.get(key)
+        if isinstance(value, str) and value.strip():
+            labels.add(normalize(value))
+    combined = normalize(element_text(element))
+    if combined:
+        labels.add(combined)
+    return labels
+
+
 def find_button(elements: list[dict], labels: tuple[str, ...]) -> dict:
     """Locate a calculator button semantically (exact normalized match first)."""
     wanted = {normalize(label) for label in labels}
-    matches = [
-        element
-        for element in elements
-        if normalize(element_text(element)) in wanted
-    ]
+    matches = [element for element in elements if wanted & _element_labels(element)]
     if not matches:
         raise AssertionError(
             f"no element matching {sorted(wanted)} in window state; "
@@ -159,21 +169,13 @@ def tool_schema(tools: list[dict], name: str) -> dict | None:
     return None
 
 
-def extract_windows(result: dict) -> list[dict]:
-    windows = []
-    if isinstance(result.get("structuredContent"), dict):
-        windows = collect_candidates(result["structuredContent"], "windows")
-    if not windows:
-        windows = collect_candidates(result.get("content"), "windows")
+def extract_windows(payload: dict) -> list[dict]:
+    windows = collect_candidates(payload, "windows")
     return [w for w in windows if isinstance(w, dict)]
 
 
-def extract_apps(result: dict) -> list[dict]:
-    apps = []
-    if isinstance(result.get("structuredContent"), dict):
-        apps = collect_candidates(result["structuredContent"], "apps")
-    if not apps:
-        apps = collect_candidates(result.get("content"), "apps")
+def extract_apps(payload: dict) -> list[dict]:
+    apps = collect_candidates(payload, "apps")
     return [a for a in apps if isinstance(a, dict)]
 
 
@@ -199,6 +201,25 @@ def window_id(window: dict):
     for key in ("window_id", "windowId", "id", "windowId", "wid"):
         if window.get(key) is not None:
             return window[key]
+    return None
+
+
+def find_session_id(node) -> str | None:
+    """Locate a scalar session identifier anywhere in a tool result."""
+    if isinstance(node, dict):
+        for key in ("session", "session_id", "sessionId", "id"):
+            value = node.get(key)
+            if key in ("session", "session_id", "sessionId") and value is not None and not isinstance(value, (dict, list)):
+                return value
+        for value in node.values():
+            found = find_session_id(value)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = find_session_id(item)
+            if found is not None:
+                return found
     return None
 
 
@@ -255,20 +276,22 @@ def run_qualification(args) -> int:
         print(f"MCP OK: {len(tools)} tools")
 
         # 1. session ------------------------------------------------------
-        client.tools_call("start_session", build_args(schemas.get("start_session"), {}),
-                          timeout=args.timeout)
+        start_result = client.tools_call(
+            "start_session", build_args(schemas.get("start_session"), {}), timeout=args.timeout
+        )
         session_started = True
-        print("start_session OK")
+        session_id = find_session_id(result_payload(start_result))
+        print(f"start_session OK (session={session_id})")
 
         # 2. discover calculator app ---------------------------------------
         apps_result = client.tools_call("list_apps", build_args(schemas.get("list_apps"), {}),
                                         timeout=args.timeout)
         apps = extract_apps(result_payload(apps_result))
-        needle = args.app.lower()
-        matches = [a for a in apps if needle in element_text(a).lower()]
+        needles = [n.strip().lower() for n in args.app.split(",") if n.strip()]
+        matches = [a for a in apps if any(n in element_text(a).lower() for n in needles)]
         if not matches:
             raise AssertionError(
-                f"no app matching {args.app!r} in list_apps output "
+                f"no app matching {needles} in list_apps output "
                 f"({[element_text(a) for a in apps][:10]} …)"
             )
         app = matches[0]
@@ -276,7 +299,12 @@ def run_qualification(args) -> int:
         print(f"discovered app: {app_name!r}")
 
         # 3. launch ----------------------------------------------------------
-        launch_candidates = {k: app[k] for k in ("name", "app", "bundle_id", "path") if app.get(k)}
+        launch_candidates = {
+            k: app[k]
+            for k in ("name", "app", "bundle_id", "aumid", "path", "launch_path")
+            if app.get(k)
+        }
+        launch_candidates.setdefault("session", session_id)
         client.tools_call("launch_app", build_args(schemas.get("launch_app"), launch_candidates),
                           timeout=args.timeout)
         print(f"launch_app OK ({app_name!r})")
@@ -287,16 +315,28 @@ def run_qualification(args) -> int:
                                            build_args(schemas.get("list_windows"), {}),
                                            timeout=args.timeout)
         windows = extract_windows(result_payload(windows_result))
-        calc_windows = [w for w in windows if needle in element_text(w).lower()]
+        calc_windows = [w for w in windows if any(n in element_text(w).lower() for n in needles)]
         if not calc_windows:
             raise AssertionError(f"no calculator window in list_windows output ({len(windows)} windows)")
-        wid = window_id(calc_windows[0])
-        print(f"window selected: {element_text(calc_windows[0])!r} (id={wid})")
+        window = calc_windows[0]
+        wid = window_id(window)
+        print(f"window selected: {element_text(window)!r} (id={wid}, pid={window.get('pid')})")
 
-        window_args = {"window_id": wid, "windowId": wid, "id": wid}
+        window_args = {
+            "window_id": wid,
+            "windowId": wid,
+            "id": wid,
+            "pid": window.get("pid"),
+            "session": session_id,
+        }
+        state_args = {
+            "include_accessibility_tree": True,
+            "include_screenshot": True,
+            **window_args,
+        }
         get_window = lambda: result_payload(client.tools_call(
             "get_window_state",
-            build_args(schemas.get("get_window_state"), window_args),
+            build_args(schemas.get("get_window_state"), state_args),
             timeout=args.timeout,
         ))
 

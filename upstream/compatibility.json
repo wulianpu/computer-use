@@ -3,6 +3,15 @@
     "version": "0.24.0",
     "tag": "cua-driver-rs-v0.24.0"
   },
-  "verified": [],
+  "verified": [
+    {
+      "version": "0.24.0",
+      "platform": "windows",
+      "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96), cua-driver 0.24.0 (cua-driver-rs-v0.24.0 release binary, sha256-verified download)",
+      "levels": ["L2", "L3"],
+      "date": "2026-09-08",
+      "notes": "L2: MCP probe PASS — handshake protocol 2025-06-18, serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed (tests/contract/cua-tools.snapshot.json). L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP Microsoft.WindowsCalculator_8wekyb3d8bbwe), semantic-only element_token clicks (6, x, 7, =), get_window_state structured elements (39) + MCP image content PASS, display verified as 42."
+    }
+  ],
   "unsupported": []
 }

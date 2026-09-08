@@ -24,5 +24,8 @@ independently.
   `e2e_calculator.py` (Level 3 Calculator qualification, dry-run by default).
 - Tests: sync logic, upstream verification, MCP client against a fake
   MCP server; portable CI workflow.
-- `compatibility.json` with candidate 0.24.0; `verified` intentionally
-  empty until real qualification receipts exist.
+- `compatibility.json` with candidate 0.24.0; first qualification receipt
+  recorded: Windows 11 (build 26200) x86_64 interactive desktop, DPI 100%,
+  L2 (MCP probe: handshake 2025-06-18, 57 tools, required subset 18/18,
+  contract snapshot committed) + L3 (Calculator `6 × 7 = 42`, semantic-only
+  element_token clicks, structured elements + image content PASS).
