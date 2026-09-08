@@ -17,8 +17,12 @@ independently.
   `upstream/source/cua-driver/`; `scripts/project_cua_skill.py`
   deterministically generates `skills/cua-driver/` with a minimal
   registered transform set (`upstream/projection.json`): frontmatter
-  normalization (official name/description verbatim), generated-notice
-  insertion, one additive MCP-transport note, removal of the
+  normalization (official name verbatim; description transport-normalized
+  fail-closed with its original sha256 preserved in metadata),
+  generated-notice insertion, the fail-closed MCP transport normalization
+  (description phrase + the upstream CLI-default "GUI transport defaults"
+  block replaced by the Agent Plugin MCP transport section + a boundary
+  note scoping the shell/management section), removal of the
   plugin-side auto-executable Windows installer one-liner, and exclusion
   of the pack README — everything else byte-exact, fail-closed on upstream
   drift, verified by offline regeneration (`verify_projection.py`) with a

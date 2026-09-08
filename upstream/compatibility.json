@@ -11,8 +11,8 @@
       "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
       "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
       "projectionMode": "raw-skill-normalized",
-      "projectionDigest": "sha256:9c8bbc53ae5a3d9ad440e4e14d6d9aefc43b2ca8e123a0b4a7a504f0528b6343",
-      "pluginCommit": "72848036c2d48c84c57dce7a75db38bc56465781",
+      "projectionDigest": "sha256:9c0d04e26d8413d11989877980f7617a819f359c0d8b3d39576df3c606beebe8",
+      "pluginCommit": "23b2be29bfb5d894e854420e2394597aefeb3eaa",
       "platform": "windows-x86_64",
       "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96)",
       "driver": {
@@ -24,7 +24,7 @@
         "L3"
       ],
       "date": "2026-09-08",
-      "notes": "Qualification ran against the projected official skill (raw-skill-normalized). L2: MCP probe PASS — negotiated-protocol compatibility qualification (handshake negotiated at 2025-06-18, the newest revision cua-driver 0.24.0 supports; the harness downgrades automatically for older servers and does not claim an independent modern+legacy matrix), serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP); pre-launch baseline proved launch ownership and only the selected window entered owned_window_ids; snapshot-bound element_token clicks (6, x, 7, =) asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); owned-only cleanup via the title-bar close button (background->foreground escalation)."
+      "notes": "Qualification ran against the projected official skill (raw-skill-normalized, including the fail-closed MCP transport normalization: description phrase, GUI-transport-defaults block replacement, and shell-section boundary note). L2: MCP probe PASS — negotiated-protocol compatibility qualification (handshake negotiated at 2025-06-18, the newest revision cua-driver 0.24.0 supports; the harness downgrades automatically for older servers and does not claim an independent modern+legacy matrix), serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP); pre-launch baseline proved launch ownership and only the selected window entered owned_window_ids; snapshot-bound element_token clicks (6, x, 7, =) asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); owned-only cleanup via the title-bar close button (background->foreground escalation)."
     }
   ],
   "unsupported": []
