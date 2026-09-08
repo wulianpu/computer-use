@@ -127,12 +127,19 @@ explicitly forbidden components).
 
 ## Related upstream work
 
-Related upstream work: [trycua/cua#2994](https://github.com/trycua/cua/pull/2994)
-(packaging the skill as an Agent Plugins v1 plugin).
+Related upstream work (tracked; `computer-use` depends on neither):
 
-`computer-use` does **not** depend on PR #2994. If the PR is closed, this
-project is unaffected. If it is merged, an upstream equivalence review
-starts. If Cua ships a quality official Agent Plugin, this project moves to
+- [trycua/cua#2994](https://github.com/trycua/cua/pull/2994) — Agent Plugins
+  v1 package proposal. If closed: no impact. If merged: start an upstream
+  equivalence review.
+- [trycua/cua#3387](https://github.com/trycua/cua/pull/3387) — the Cua
+  maintainer's own cross-marketplace portable Skill projection. If upstream
+  ships an official portable skill path (e.g.
+  `libs/cua-driver/plugins/cua-driver/skills/cua-driver`), evaluate
+  migrating from our raw canonical-skill mirror to that official portable
+  projection — it could shrink this project's thin adapter.
+
+If Cua ships a quality official Agent Plugin, this project moves to
 maintenance mode and points users at the official plugin instead of
 maintaining a fork.
 

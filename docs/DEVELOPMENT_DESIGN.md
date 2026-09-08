@@ -1,8 +1,9 @@
 # Development Design (computer-use v0.1)
 
-> Authoritative full design (Chinese): `computer-use 最终开发设计文档.md`
-> (repo root). This file is the English implementation-facing summary; when
-> the two disagree, the full design document wins.
+> Authoritative full design (Chinese): `docs/archive/INITIAL_DESIGN.zh-CN.md`
+> (the original frozen design document, archived verbatim). This file is the
+> English implementation-facing summary; when the two disagree, the archived
+> full design document wins.
 
 ## 1. Project definition
 
@@ -140,12 +141,27 @@ version-check wrapper.
 
 | Script | Category | Notes |
 | --- | --- | --- |
-| `scripts/sync_cua.py` | upstream sync | fail-closed mirror generator (GitHub API with git/raw fallbacks) |
+| `scripts/sync_cua.py` | upstream sync | fail-closed mirror generator (GitHub API with git/raw fallbacks; the git fallback fetches by the resolved commit SHA, never HEAD) |
 | `scripts/verify_upstream.py` | verification | offline, no network |
-| `scripts/validate_plugin.py` | verification | deterministic plugin + skill validation (no network, no schema downloads) |
+| `scripts/validate_plugin.py` | verification | pinned official schemas + project policy, offline |
 | `scripts/mcp_client.py` | verification | **TEST / VALIDATION ONLY** minimal MCP stdio client |
 | `scripts/mcp_probe.py` | qualification (L2) | handshake, tools/list, required subset, optional `--snapshot` contract snapshot for upgrade diffs |
-| `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only, dry-run unless `--yes` |
+| `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only, dry-run unless `--yes`; proves launch ownership and closes only what it launched |
+
+Validation model: the **official Agent Plugins schemas, pinned as local
+copies under `schemas/agent-plugins/1.0.0/`, are the authority** for
+plugin.json / mcp.json field sets (validated with `jsonschema`, never
+re-implemented by hand). `validate_plugin.py` adds only project policy
+(name/server identity, direct `cua-driver mcp` invocation, no wrappers, no
+bundled runtime, thin-skill conformance). skills-ref (Agent Skills
+reference implementation) is demonstration software; it is not a CI gate
+here — the deterministic validators are, and a skills-ref cross-check can
+be run manually where available.
+
+Qualification receipts in `upstream/compatibility.json` are bound to
+`(version, upstreamCommit, skillSource)` — a same-version re-pin
+invalidates them — and record the plugin commit plus the exact driver
+artifact digest the evidence was produced against.
 
 Toolchain: Python ≥3.12, pytest/jsonschema/PyYAML as *development*
 dependencies only. The plugin runtime has no Python, no Node, no custom
@@ -184,8 +200,13 @@ Agent Plugin (`plugin.json`/`mcp.json`/`skills/…`). If it does, trigger
 conformance, compatibility, platform behavior, and stable artifacts, and
 move this project to maintenance mode pointing at the official plugin.
 
-Related upstream work: trycua/cua#2994. This project does not depend on
-it; closure is a no-op, merge starts an equivalence review.
+Related upstream work: trycua/cua#2994 (Agent Plugins v1 package proposal —
+closure is a no-op, merge starts an equivalence review) and trycua/cua#3387
+(the maintainer's cross-marketplace portable Skill projection — if upstream
+ships an official portable skill path such as
+`libs/cua-driver/plugins/cua-driver/skills/cua-driver`, evaluate migrating
+from the raw canonical-skill mirror to that projection to shrink the thin
+adapter). This project depends on neither.
 
 ## 12. Versioning, security, release
 

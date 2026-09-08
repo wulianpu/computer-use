@@ -258,42 +258,49 @@ def plan_only(args) -> int:
     return 0
 
 
-def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: float) -> None:
-    """Best-effort, semantic-only cleanup of the app this E2E launched.
+def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: float,
+                         launch_pid=None, owned_window_ids: set | None = None) -> None:
+    """Best-effort, semantic-only cleanup of what THIS run launched.
 
-    Two paths, both semantic (no pixel fallback):
-      1. app running with its own pid -> kill_app (never the UWP host pid)
-      2. suspended UWP whose window is still on screen -> semantic click on
-         the title-bar close button
+    Ownership is proven by the launch result (real app pid) or by the
+    pre/post window-set diff (owned window ids). We never guess a
+    calculator by name: if ownership cannot be proven, we warn and close
+    nothing. The UWP host pid from window objects is never used for
+    kill_app — it hosts other apps too.
+
+    Paths (both semantic, no pixel fallback):
+      1. app still running at the launch-returned pid -> kill_app
+      2. owned window still on screen -> title-bar close button, following
+         the delivery_mode contract (background first; escalate to
+         foreground only on structured rejection or verified no-op)
     Failures warn but never flip a PASS into a FAIL.
     """
-    # 1. running app with a real pid
-    try:
-        apps = extract_apps(result_payload(client.tools_call(
-            "list_apps", build_args(schemas.get("list_apps"), {}), timeout=timeout)))
-        entry = next(
-            (a for a in apps
-             if any(n in element_text(a).lower() for n in needles) and a.get("pid")),
-            None,
-        )
-        if entry:
-            client.tools_call("kill_app", {"pid": entry["pid"]}, timeout=30.0)
-            print(f"cleanup: kill_app OK ({entry.get('name')!r}, pid={entry['pid']})")
-            return
-    except Exception as exc:
-        print(f"WARNING: cleanup list_apps failed: {exc}")
+    owned_window_ids = owned_window_ids or set()
 
-    # 2. leftover window (e.g. suspended UWP) -> title-bar close button.
-    #    Cua delivery_mode contract: 'background' is the mandatory first
-    #    attempt; only a verified no-op justifies re-issuing the same action
-    #    with 'foreground' (optionally after bring_to_front for a suspended
-    #    window). Never escalate preemptively.
+    # 1. running app with the launch-returned pid (the real app pid)
+    if launch_pid:
+        try:
+            apps = extract_apps(result_payload(client.tools_call(
+                "list_apps", build_args(schemas.get("list_apps"), {}), timeout=timeout)))
+            entry = next((a for a in apps if a.get("pid") == launch_pid), None)
+            if entry:
+                client.tools_call("kill_app", {"pid": launch_pid}, timeout=30.0)
+                print(f"cleanup: kill_app OK ({entry.get('name')!r}, pid={launch_pid})")
+                return
+        except Exception as exc:
+            print(f"WARNING: cleanup list_apps failed: {exc}")
+
+    # 2. owned leftover window (e.g. suspended UWP) -> title-bar close button
     try:
         windows = extract_windows(result_payload(client.tools_call(
             "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
-        calc = [w for w in windows if any(n in element_text(w).lower() for n in needles)]
+        calc = [w for w in windows if window_id(w) in owned_window_ids]
         if not calc:
-            print("cleanup: calculator no longer running, nothing to close")
+            if launch_pid is None and not owned_window_ids:
+                print("cleanup: cannot prove ownership (no launch pid, no owned "
+                      "windows); not closing anything")
+            else:
+                print("cleanup: nothing left to close")
             return
         w = calc[0]
         wargs = {
@@ -307,6 +314,9 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
             timeout=timeout))
         button = find_button(collect_elements(state), CLOSE_BUTTON_LABELS)
         token = element_token(button)
+        if token is None:
+            raise AssertionError(
+                "close-button element_token missing; refusing a name-only click")
 
         def click_close(delivery_mode: str | None = None) -> None:
             click_args = dict(wargs)
@@ -365,6 +375,8 @@ def run_qualification(args) -> int:
     failures: list[str] = []
     session_started = False
     launched = False
+    launch_pid = None
+    owned_window_ids: set = set()
     needles = [n.strip().lower() for n in args.app.split(",") if n.strip()]
     client: mcp_client.McpStdioClient | None = None
     schemas: dict = {}
@@ -404,30 +416,47 @@ def run_qualification(args) -> int:
         app_name = next((app[k] for k in ("name", "app", "bundle_id") if app.get(k)), None)
         print(f"discovered app: {app_name!r}")
 
-        # 3. launch ----------------------------------------------------------
+        # 3. launch with ownership tracking (close only what we launch) ------
+        pre_windows = extract_windows(result_payload(client.tools_call(
+            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=args.timeout)))
+        baseline_ids = {(w.get("pid"), window_id(w)) for w in pre_windows}
+
         launch_candidates = {
             k: app[k]
             for k in ("name", "app", "bundle_id", "aumid", "path", "launch_path")
             if app.get(k)
         }
         launch_candidates.setdefault("session", session_id)
-        client.tools_call("launch_app", build_args(schemas.get("launch_app"), launch_candidates),
-                          timeout=args.timeout)
+        launch_result = client.tools_call(
+            "launch_app", build_args(schemas.get("launch_app"), launch_candidates),
+            timeout=args.timeout)
         launched = True
-        print(f"launch_app OK ({app_name!r})")
+        launch_payload = result_payload(launch_result)
+        launch_pid = launch_payload.get("pid") if isinstance(
+            launch_payload.get("pid"), (int, str)) else None
+        print(f"launch_app OK ({app_name!r}, launch pid={launch_pid})")
         time.sleep(args.settle)
 
-        # 4. exact window ----------------------------------------------------
-        windows_result = client.tools_call("list_windows",
-                                           build_args(schemas.get("list_windows"), {}),
-                                           timeout=args.timeout)
-        windows = extract_windows(result_payload(windows_result))
-        calc_windows = [w for w in windows if any(n in element_text(w).lower() for n in needles)]
+        # 4. exact window — only one this run can prove it created -----------
+        post_windows = extract_windows(result_payload(client.tools_call(
+            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=args.timeout)))
+        new_windows = [
+            w for w in post_windows if (w.get("pid"), window_id(w)) not in baseline_ids
+        ]
+        owned_window_ids = {window_id(w) for w in new_windows}
+        calc_windows = [
+            w for w in new_windows if any(n in element_text(w).lower() for n in needles)
+        ]
         if not calc_windows:
-            raise AssertionError(f"no calculator window in list_windows output ({len(windows)} windows)")
+            raise AssertionError(
+                "launch did not produce an identifiable new calculator window "
+                f"(new windows: {[element_text(w) for w in new_windows]}); refusing "
+                "to act on pre-existing calculator windows"
+            )
         window = calc_windows[0]
         wid = window_id(window)
-        print(f"window selected: {element_text(window)!r} (id={wid}, pid={window.get('pid')})")
+        print(f"window selected (owned): {element_text(window)!r} "
+              f"(id={wid}, pid={window.get('pid')})")
 
         window_args = {
             "window_id": wid,
@@ -469,9 +498,15 @@ def run_qualification(args) -> int:
             elements = collect_elements(state)
             button = find_button(elements, BUTTONS[key])
             token = element_token(button)
-            click_candidates: dict = {}
-            if token:
-                click_candidates[token[0]] = token[1]
+            if token is None:
+                # Qualification claims snapshot-bound semantic handles (see
+                # compatibility.json receipt); name-only targeting is not
+                # sufficient evidence, so fail closed here.
+                raise AssertionError(
+                    f"element_token missing for button {key!r} — qualification "
+                    "requires snapshot-bound semantic handles"
+                )
+            click_candidates: dict = {token[0]: token[1]}
             click_candidates.update({
                 "name": button.get("name"),
                 "text": button.get("name"),
@@ -490,20 +525,24 @@ def run_qualification(args) -> int:
         state = get_window()
         display = find_display_text(collect_elements(state))
         print(f"display read: {display!r}")
-        if args.expect not in display.replace(",", ""):
-            failures.append(f"display does not show {args.expect!r} (read: {display!r})")
+        # Exact match with digit boundaries: '42' must not match '142'/'423'.
+        expected = rf"(?<!\d){re.escape(args.expect)}(?!\d)"
+        if not re.search(expected, display.replace(",", "")):
+            failures.append(f"display does not show {args.expect!r} exactly (read: {display!r})")
         else:
-            print(f"verify {args.expect} PASS")
+            print(f"verify {args.expect} PASS (exact, digit-bounded)")
 
     except AssertionError as exc:
         failures.append(str(exc))
     except Exception as exc:  # qualification evidence, not a crash traceback
         failures.append(f"{type(exc).__name__}: {exc}")
     finally:
-        # Test hygiene: close what we launched, inside the session, through
-        # the same semantic Cua path (see cleanup_launched_app).
+        # Test hygiene: close ONLY what this run launched, inside the session,
+        # through the same semantic Cua path (see cleanup_launched_app).
         if client and launched:
-            cleanup_launched_app(client, schemas, needles, args.timeout)
+            cleanup_launched_app(client, schemas, needles, args.timeout,
+                                 launch_pid=launch_pid,
+                                 owned_window_ids=owned_window_ids)
         if client and session_started:
             try:
                 client.tools_call("end_session", {}, timeout=30.0)

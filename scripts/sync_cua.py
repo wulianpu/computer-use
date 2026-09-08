@@ -186,19 +186,37 @@ def update_thin_skill(skill_path: Path, version: str) -> None:
     skill_path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def update_compatibility(path: Path, candidate: dict) -> None:
-    """Update the candidate block; drop 'verified' entries from other versions."""
+def entry_matches_lock(entry: dict, lock: dict) -> bool:
+    """Qualification evidence is bound to the exact pinned source.
+
+    A receipt only survives a re-sync when the version AND the immutable
+    upstream commit AND the skill source path are all unchanged — a same-version
+    re-pin (moved tag, rewritten source, moved skillSource) invalidates it.
+    """
+    return (
+        entry.get("version") == lock["version"]
+        and entry.get("upstreamCommit") == lock["commit"]
+        and entry.get("skillSource", lock["skillSource"]) == lock["skillSource"]
+    )
+
+
+def update_compatibility(path: Path, lock: dict) -> None:
+    """Update the candidate block; drop receipts that do not match the pinned source."""
     compat = json.loads(path.read_text(encoding="utf-8"))
-    compat["candidate"] = candidate
-    kept = []
+    compat["candidate"] = {
+        "version": lock["version"],
+        "tag": lock["tag"],
+        "commit": lock["commit"],
+    }
+    kept, dropped = [], []
     for entry in compat.get("verified", []):
-        if entry.get("version") != candidate["version"]:
-            print(
-                f"  note: dropping verified entry for {entry.get('version')!r} "
-                "(belongs to a previous candidate; re-qualify after upgrade)"
-            )
-        else:
-            kept.append(entry)
+        (kept if entry_matches_lock(entry, lock) else dropped).append(entry)
+    for entry in dropped:
+        print(
+            f"  note: dropping verified entry for {entry.get('version')!r} @ "
+            f"{str(entry.get('upstreamCommit'))[:12]!r} — qualification evidence "
+            "does not transfer to the newly pinned source; re-qualify"
+        )
     compat["verified"] = kept
     save_json(path, compat)
 
@@ -303,19 +321,19 @@ class Upstream:
             return [item["name"] for item in payload if item.get("type") == "file"]
         except SyncError:
             pass  # fall through to git
+        # Git fallback fetches BY THE RESOLVED COMMIT SHA — never HEAD, a
+        # branch, or the tag (which could move). The resolved commit is
+        # carried all the way through (design doc §24).
         tmp = Path(tempfile.mkdtemp(prefix="cua-sync-"))
         try:
+            self._git("init", "--quiet", str(tmp))
+            self._git("-C", str(tmp), "remote", "add", "origin", self.repo_url)
             self._git(
-                "clone",
-                "--quiet",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--no-checkout",
-                self.repo_url,
-                str(tmp),
+                "-C", str(tmp), "fetch", "--quiet",
+                "--depth", "1", "--filter=blob:none",
+                "origin", commit,
             )
-            out = self._git("-C", str(tmp), "ls-tree", "-r", "--name-only", "HEAD", "--", path)
+            out = self._git("-C", str(tmp), "ls-tree", "-r", "--name-only", commit, "--", path)
             names = [line.rsplit("/", 1)[-1] for line in out.splitlines() if line.strip()]
             return [name for name in names if name != path.rsplit("/", 1)[-1]]
         finally:
@@ -466,7 +484,7 @@ def main(argv=None) -> int:
     (root / NOTICES_REL).write_text(
         render_third_party_notices(lock), encoding="utf-8", newline="\n"
     )
-    update_compatibility(root / COMPAT_REL, {"version": version, "tag": args.tag})
+    update_compatibility(root / COMPAT_REL, lock)
     update_thin_skill(root / SKILL_REL, version)
 
     print(

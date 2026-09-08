@@ -32,9 +32,11 @@ What each proves:
   against `tests/fixtures/fake_mcp_server.py` (handshake, legacy fallback,
   tools/list, tools/call, timeout, bad stdout, stderr noise, process exit).
 
-skills-ref (`skills-ref validate skills/`) is optionally run in CI as a
-**reference cross-check only**; it is demonstration software and never the
-sole gate — the deterministic validators above are.
+skills-ref (`skills-ref validate skills/`) is the Agent Skills reference
+implementation and is **demonstration software** — it is not part of CI and
+is not reliably installable from PyPI. The deterministic validators above
+are the gate; you may run a skills-ref cross-check manually on a machine
+where it is available.
 
 ## Level 2 — Cua MCP contract (needs real `cua-driver`)
 

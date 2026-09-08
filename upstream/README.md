@@ -16,16 +16,27 @@ Cua publishes a release. An environment may only be added to `verified`
 after it passes Level 2 (MCP contract probe) and Level 3 (real desktop
 qualification) on a real machine.
 
-Suggested shape of a `verified` entry (record the concrete environment):
+Suggested shape of a `verified` entry (record the concrete environment).
+Receipts are bound to the exact pinned source — `sync_cua.py` drops any
+entry whose `version`, `upstreamCommit`, or `skillSource` no longer matches
+the lock, so evidence never transfers across a same-version re-pin:
 
 ```json
 {
   "version": "0.24.0",
-  "platform": "windows",
-  "environment": "Windows 11 24H2, x86_64, interactive desktop, DPI 100%",
+  "tag": "cua-driver-rs-v0.24.0",
+  "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+  "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
+  "pluginCommit": "<computer-use git commit the qualification ran against>",
+  "platform": "windows-x86_64",
+  "environment": "Windows 11 build 26200, interactive desktop, DPI 100%",
+  "driver": {
+    "artifact": "cua-driver-rs-0.24.0-windows-x86_64-binary.zip",
+    "sha256": "cc22d7a44ad526f779f2df7e6da053dd898ef8e5014b1ecfc01728645f691be0"
+  },
   "levels": ["L2", "L3"],
   "date": "2026-09-08",
-  "notes": "Calculator E2E 6x7=42 PASS; Chrome + Electron spot checks PASS"
+  "notes": "…"
 }
 ```
 

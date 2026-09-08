@@ -76,14 +76,24 @@ mcp.json
 skills/cua-driver/
 ```
 
-If it does, trigger **UPSTREAM_MIGRATION_REVIEW** instead of releasing
-another version of this projection unconditionally. Migration criteria:
-Agent Plugins conformance, Agent Skills conformance, Cua runtime
-compatibility, the platform behavior we need, and stable release
-artifacts. When the official plugin qualifies, this project moves to
-maintenance mode ("Use the official Cua Agent Plugin") and stops forking —
-that is the intended long-term exit.
+Additionally check for the maintainer's portable Skill projection (tracked
+in trycua/cua#3387), e.g. a path like:
 
-Related upstream work: trycua/cua#2994. This project does not depend on
-that PR; if it closes, nothing changes here; if it merges, an upstream
-equivalence review begins.
+```text
+libs/cua-driver/plugins/cua-driver/skills/cua-driver
+```
+
+If either appears, trigger **UPSTREAM_MIGRATION_REVIEW** instead of
+releasing another version of this projection unconditionally. For the
+portable-projection variant, evaluate migrating from our raw
+canonical-skill mirror to the official projection — it could shrink this
+project's thin adapter. Migration criteria: Agent Plugins conformance,
+Agent Skills conformance, Cua runtime compatibility, the platform behavior
+we need, and stable release artifacts. When the official plugin qualifies,
+this project moves to maintenance mode ("Use the official Cua Agent
+Plugin") and stops forking — that is the intended long-term exit.
+
+Related upstream work (this project depends on neither):
+trycua/cua#2994 (Agent Plugins v1 package proposal) and trycua/cua#3387
+(official cross-marketplace portable Skill projection). #2994 closing is a
+no-op; either merging starts an equivalence review.

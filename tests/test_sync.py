@@ -87,20 +87,47 @@ class TestThinSkillUpdate:
 
 
 class TestCompatibilityUpdate:
-    def test_drops_verified_entries_from_other_versions(self, tmp_path):
+    def _lock(self, version="0.24.0", commit="c" * 40, source="libs/cua-driver/rust/Skills/cua-driver"):
+        return {
+            "version": version,
+            "tag": f"cua-driver-rs-v{version}",
+            "commit": commit,
+            "skillSource": source,
+        }
+
+    def _write(self, tmp_path, verified):
         path = tmp_path / "compatibility.json"
         path.write_text(json.dumps({
             "candidate": {"version": "0.23.0", "tag": "old"},
-            "verified": [
-                {"version": "0.23.0", "platform": "windows"},
-                {"version": "0.22.0", "platform": "linux"},
-            ],
+            "verified": verified,
             "unsupported": [],
         }), encoding="utf-8")
-        sync_cua.update_compatibility(path, {"version": "0.24.0", "tag": "new"})
+        return path
+
+    def test_receipts_survive_only_the_exact_pinned_source(self, tmp_path):
+        path = self._write(tmp_path, [
+            {"version": "0.24.0", "upstreamCommit": "c" * 40},          # exact match -> keep
+            {"version": "0.24.0", "upstreamCommit": "d" * 40},          # same version, moved commit -> drop
+            {"version": "0.23.0", "upstreamCommit": "c" * 40},          # older version -> drop
+            {"version": "0.24.0"},                                      # legacy receipt w/o commit -> drop
+        ])
+        sync_cua.update_compatibility(path, self._lock())
         compat = json.loads(path.read_text(encoding="utf-8"))
-        assert compat["candidate"] == {"version": "0.24.0", "tag": "new"}
-        assert [e["version"] for e in compat["verified"]] == []
+        kept = compat["verified"]
+        assert len(kept) == 1
+        assert kept[0]["upstreamCommit"] == "c" * 40
+        assert compat["candidate"] == {
+            "version": "0.24.0", "tag": "cua-driver-rs-v0.24.0", "commit": "c" * 40,
+        }
+
+    def test_skill_source_change_invalidates_receipts(self, tmp_path):
+        path = self._write(tmp_path, [
+            {"version": "0.24.0", "upstreamCommit": "c" * 40,
+             "skillSource": "AgentPlugin/skills/cua-driver"},
+        ])
+        sync_cua.update_compatibility(path, self._lock())  # default source differs
+        compat = json.loads(path.read_text(encoding="utf-8"))
+        assert compat["verified"] == []
 
 
 # --------------------------------------------------- full run with fake net
@@ -164,7 +191,11 @@ class TestMainEndToEnd:
         assert (mirror / "SKILL.md").read_bytes() == f"content of {sync_cua.DEFAULT_SOURCE_PATH}/SKILL.md\n".encode()
 
         compat = json.loads((root / "upstream" / "compatibility.json").read_text(encoding="utf-8"))
-        assert compat["candidate"] == {"version": "0.24.0", "tag": "cua-driver-rs-v0.24.0"}
+        assert compat["candidate"] == {
+            "version": "0.24.0",
+            "tag": "cua-driver-rs-v0.24.0",
+            "commit": "f" * 40,
+        }
 
         skill = (root / "skills" / "cua-driver" / "SKILL.md").read_text(encoding="utf-8")
         assert 'upstream-version: "0.24.0"' in skill
