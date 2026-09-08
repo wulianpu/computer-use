@@ -1,0 +1,26 @@
+{
+  "tools": [
+    "list_apps",
+    "list_windows",
+
+    "get_accessibility_tree",
+    "get_window_state",
+    "get_desktop_state",
+
+    "launch_app",
+
+    "click",
+    "double_click",
+    "right_click",
+    "drag",
+    "scroll",
+    "type_text",
+    "press_key",
+    "hotkey",
+
+    "start_session",
+    "get_session_state",
+    "escalate_session",
+    "end_session"
+  ]
+}

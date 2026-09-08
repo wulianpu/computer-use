@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# NOTE: This Python project is the *development toolchain* for the
+# `computer-use` Agent Plugin. It is NOT a Plugin runtime dependency.
+# The plugin runtime surface is only: plugin.json, mcp.json, skills/.
+name = "computer-use-dev"
+version = "0.1.0"
+description = "Development toolchain (sync / verify / validate / qualify) for the computer-use Agent Plugin. Python package != Plugin runtime."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "jsonschema>=4.21",
+    "PyYAML>=6.0",
+]
+
+[tool.setuptools]
+# Nothing is packaged for distribution; scripts are run in-place.
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "computer-use",
+  "version": "0.1.0",
+  "description": "Portable computer use for AI agents, powered by Cua Driver.",
+  "repository": "https://github.com/chinasws/computer-use",
+  "keywords": [
+    "computer-use",
+    "cua",
+    "desktop-automation",
+    "mcp",
+    "agent-skills"
+  ]
+}

@@ -1,0 +1,16 @@
+# Default to LF for our own files, but keep upstream mirrors byte-exact
+# (sha256 in upstream/cua.lock.json is computed over original upstream bytes).
+* text=auto eol=lf
+
+# Upstream mirror is read-only generated material.
+skills/cua-driver/references/upstream/* -text linguist-generated=true
+licenses/CUA-LICENSE.md -text linguist-generated=true
+
+# Generated contract snapshot (evidence, human-reviewed diffs only).
+tests/contract/cua-tools.snapshot.json linguist-generated=true
+
+*.png binary
+*.jpg binary
+*.py text
+*.json text
+*.md text

@@ -1,0 +1,50 @@
+name: validate
+
+# Portable CI (design doc §57, §58): validates the Agent Plugin package,
+# the thin Skill, the upstream mirror hashes, and runs unit tests plus the
+# fake-MCP tests. It installs NO Cua and touches NO desktop — live
+# qualification (mcp_probe, Calculator E2E, desktop matrix) runs on a
+# dedicated interactive qualification host, never here.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Deterministic plugin + skill validation (Level 1)
+        run: python scripts/validate_plugin.py
+
+      - name: Upstream mirror verification, offline (Level 1)
+        run: python scripts/verify_upstream.py
+
+      # Reference cross-check (design doc §36): skills-ref is demonstration
+      # software; our deterministic validator above is the gate, so this step
+      # reports but cannot mask it.
+      - name: skills-ref cross-check (reference implementation, advisory)
+        continue-on-error: true
+        run: |
+          if python -m pip install --quiet skills-ref 2>/dev/null && command -v skills-ref >/dev/null 2>&1; then
+            skills-ref validate skills/ || { echo "::error::skills-ref reported failures"; exit 1; }
+          else
+            echo "::warning::skills-ref not installable here; deterministic validator result stands"
+          fi
+
+      - name: Unit tests + fake MCP server tests (Level 1)
+        run: python -m pytest -v
