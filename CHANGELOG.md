@@ -37,7 +37,12 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
   is byte-exact; any upstream drift fails closed.
 - `scripts/verify_projection.py` proves offline that the committed skill
   tree equals a fresh regeneration (projection digest
-  `sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29`).
+  `sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29`),
+  and `scripts/release_check.py` machine-proves the release evidence chain
+  (tag/version/CHANGELOG alignment, digests vs receipts, production
+  surface — `plugin.json` + `mcp.json` + `skills/`, bound via
+  `pluginSurfaceDigest` — unchanged since the qualified commit) and prints
+  RELEASE READY.
 
 ### Toolchain
 
@@ -62,7 +67,7 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
 
 ### Tests & CI
 
-- 63 tests: projection determinism and fail-closed drift, receipt
+- 72 tests: projection determinism and fail-closed drift, receipt
   invalidation, Agent Skills frontmatter conformance, mcp.json template
   determinism, supply-chain shape checks, and the MCP client against a
   fake server. Portable CI workflow (no Cua, no desktop).
