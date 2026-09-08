@@ -1,16 +1,25 @@
 {
   "candidate": {
     "version": "0.24.0",
-    "tag": "cua-driver-rs-v0.24.0"
+    "tag": "cua-driver-rs-v0.24.0",
+    "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520"
   },
   "verified": [
     {
       "version": "0.24.0",
-      "platform": "windows",
-      "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96), cua-driver 0.24.0 (cua-driver-rs-v0.24.0 release binary, sha256-verified download)",
+      "tag": "cua-driver-rs-v0.24.0",
+      "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+      "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
+      "pluginCommit": "63c0bab6f97e271cd4e0973751c9b35bd340e477",
+      "platform": "windows-x86_64",
+      "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96)",
+      "driver": {
+        "artifact": "cua-driver-rs-0.24.0-windows-x86_64-binary.zip",
+        "sha256": "cc22d7a44ad526f779f2df7e6da053dd898ef8e5014b1ecfc01728645f691be0"
+      },
       "levels": ["L2", "L3"],
       "date": "2026-09-08",
-      "notes": "L2: MCP probe PASS — handshake protocol 2025-06-18, serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed (tests/contract/cua-tools.snapshot.json). L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP Microsoft.WindowsCalculator_8wekyb3d8bbwe), semantic-only element_token clicks (6, x, 7, =), get_window_state structured elements (39) + MCP image content PASS, display verified as 42."
+      "notes": "L2: MCP probe PASS — handshake protocol 2025-06-18, serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP Microsoft.WindowsCalculator_8wekyb3d8bbwe); pre-launch window baseline proved launch ownership; snapshot-bound element_token clicks (6, x, 7, =) with token asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); cleanup closed only the owned window via the title-bar close button (background->foreground escalation), zero leftover windows."
     }
   ],
   "unsupported": []
