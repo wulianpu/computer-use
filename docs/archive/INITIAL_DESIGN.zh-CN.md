@@ -1,8 +1,14 @@
 # computer-use 最终开发设计文档
 
+> **ARCHIVED / SUPERSEDED.** 本文档是历史背景，仅作存档。其中描述的
+> thin Skill + `skills/cua-driver/references/upstream/` 镜像架构已被
+> **official Skill projection** 架构取代。当前权威实现设计是
+> `docs/DEVELOPMENT_DESIGN.md`；发生冲突时以该文档与当前架构为准，
+> 本文档不得覆盖它们。正文以下保持历史原样，未做修改。
+
 ## 0. 文档状态
 
-**状态：Final for v0.1 implementation**
+**状态：Final for v0.1 implementation**（历史快照）
 
 本设计用于：
 

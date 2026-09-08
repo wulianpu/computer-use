@@ -8,7 +8,7 @@
     "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
     "skillSource": "libs/cua-driver/rust/Skills/cua-driver"
   },
-  "projectionDigest": "sha256:9c0d04e26d8413d11989877980f7617a819f359c0d8b3d39576df3c606beebe8",
+  "projectionDigest": "sha256:b27ac9cbf6dae01eb428898490be66cd01f0c85192547cc0d5213c0a6fe7bc29",
   "transforms": [
     {
       "id": "normalize-agent-skills-frontmatter",
@@ -20,6 +20,10 @@
     },
     {
       "id": "prefer-agent-plugin-mcp-transport",
+      "file": "SKILL.md"
+    },
+    {
+      "id": "exclude-host-specific-mcp-setup-guidance",
       "file": "SKILL.md"
     },
     {

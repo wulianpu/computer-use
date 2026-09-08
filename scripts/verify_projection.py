@@ -41,6 +41,7 @@ CONTENT_TRANSFORM_IDS = {
     "normalize-agent-skills-frontmatter",
     "insert-generated-notice",
     "prefer-agent-plugin-mcp-transport",
+    "exclude-host-specific-mcp-setup-guidance",
     "remove-plugin-side-native-installer-execution",
 }
 PROJECTED_FILES = ("SKILL.md",) + projection.COMPANIONS

@@ -196,20 +196,6 @@ for ordinary tool calls in this Agent Plugin environment.
 Lifecycle, session, cursor, recording, browser, authorization, and
 verification semantics remain those defined by Cua Driver.
 
-### Claude Code computer-use compatibility flag
-
-For normal Claude Code use, keep the default CLI or `cua-driver` MCP
-server path above. If the user explicitly wants Claude Code's
-vision/computer-use-style flow, they can register:
-
-```bash
-cua-driver mcp-config --client claude   # then paste + run the printed line
-```
-
-The compatibility flag is retained for old setup snippets, but the standalone
-`screenshot` tool was removed. It does not add or replace tools. Use
-`get_window_state({pid, window_id})` for a window-local accessibility snapshot
-and PNG, or `get_desktop_state()` for an explicitly authorized desktop capture.
 
 ## Using cua-driver from the shell
 

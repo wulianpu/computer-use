@@ -1,9 +1,9 @@
 # Development Design (computer-use v0.1)
 
-> Authoritative full design (Chinese): `docs/archive/INITIAL_DESIGN.zh-CN.md`
-> (the original frozen design document, archived verbatim). This file is the
-> English implementation-facing summary; when the two disagree, the archived
-> full design document wins.
+> **This document is the authoritative implementation design for v0.1.**
+> `docs/archive/INITIAL_DESIGN.zh-CN.md` is historical context only — it
+> describes the superseded thin-skill/references architecture and MUST NOT
+> override this document or the current architecture.
 
 ## 1. Project definition
 
@@ -91,15 +91,23 @@ skill discovery tree); `scripts/project_cua_skill.py` generates the skill
 tree; hand-editing is forbidden and detected (regeneration comparison).
 Upstream's own frontmatter is not strictly conforming Agent Skills
 metadata (nested `metadata.openclaw`, `version` keys), so the projection
-normalizes the frontmatter while preserving the official
-`name`/`description` verbatim.
+normalizes it: the upstream **name is preserved verbatim**; the upstream
+**description is transport-normalized only** ("via the cua-driver CLI
+(default) or MCP server" → "via the Cua Driver MCP server") with its
+**original SHA-256 retained in projected metadata**
+(`upstream-description-sha256`).
 
 The complete transform set is registered in `upstream/projection.json` and
-kept minimal (frontmatter normalization, generated-notice insertion, one
-additive MCP-transport note, removal of the plugin-side auto-executable
-Windows installer one-liner, exclusion of the pack README). Everything
-else is byte-exact. Transforms fail closed: an expected upstream block
-that changed upstream aborts the projection for manual review.
+kept minimal: frontmatter normalization, generated-notice insertion, the
+fail-closed MCP transport normalization (the description phrase above;
+the upstream CLI-default "GUI transport defaults" block replaced
+byte-exactly by the Agent Plugin MCP transport contract; a boundary note
+scoping the shell/management section to hosts that really provide a
+shell), exclusion of the host-specific Claude Code MCP setup subsection,
+removal of the plugin-side auto-executable Windows installer one-liner,
+and exclusion of the pack README. Everything else is byte-exact.
+Transforms fail closed: an expected upstream block that changed upstream
+aborts the projection for manual review.
 `scripts/verify_projection.py` re-proves offline that the committed tree
 equals the regeneration, and invalidates qualification receipts when the
 projection digest changes. Long-term goal (trycua/cua#3387):

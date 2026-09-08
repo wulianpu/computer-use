@@ -69,7 +69,7 @@ class TestProjection:
         expected_hash = projection.sha256_hex(fm["description"].encode("utf-8"))
         assert f'upstream-description-sha256: "{expected_hash}"' in projected
 
-        # Body: remove the declared replacements from BOTH sides and the
+        # Body: apply the declared transforms to the upstream body and the
         # remainder must be identical (everything else is verbatim).
         _, upstream_body = projection.parse_upstream_frontmatter(upstream)
         after_projected_fm = projected.split("---\n", 2)[2]
@@ -80,11 +80,26 @@ class TestProjection:
                 projection.TRANSPORT_SECTION_REPLACEMENT,
             )
         )
+        rebuilt_upstream = projection.exclude_host_specific_setup(rebuilt_upstream)
         rebuilt_upstream = projection.transform_shell_section(rebuilt_upstream)
         assert projected_body.lstrip("\n") == rebuilt_upstream.lstrip("\n")
-        # The CLI-default block itself is gone from production.
+        # The CLI-default block and host-specific setup are gone from production.
         assert "Default transport is the `cua-driver` CLI" not in projected
         assert "translate to MCP form only" not in projected
+        assert "Claude Code computer-use compatibility flag" not in projected
+        assert "mcp-config --client claude" not in projected
+
+    def test_claude_setup_drift_fails_closed(self, tmp_path):
+        root = make_repo(tmp_path)
+        skill_source = root / "upstream" / "source" / "cua-driver" / "SKILL.md"
+        text = skill_source.read_text(encoding="utf-8").replace(
+            "For normal Claude Code use",
+            "For normal Claude Code usage",
+        )
+        skill_source.write_text(text, encoding="utf-8", newline="\n")
+        _relock(root, "SKILL.md", skill_source)
+        with pytest.raises(projection.ProjectionError, match="Claude Code setup"):
+            projection.project(root)
 
     def test_transport_block_drift_fails_closed(self, tmp_path):
         root = make_repo(tmp_path)

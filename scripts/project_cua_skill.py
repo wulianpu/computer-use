@@ -28,6 +28,11 @@ declared, minimal transforms registered in upstream/projection.json:
                                         under "Using cua-driver from the shell"
                                         scopes that section to hosts that really
                                         provide a shell)
+    exclude-host-specific-mcp-setup-guidance  SKILL.md
+                                        (the Claude Code compatibility/setup
+                                        subsection is host-specific install
+                                        guidance, not Computer Use behavior —
+                                        removed from the host-neutral plugin)
     remove-plugin-side-native-installer-execution  WINDOWS.md
                                         (irm|iex one-liner -> refer to official guide)
     exclude-upstream-pack-readme         README.md   (pack-level doc, not projected)
@@ -168,8 +173,44 @@ SHELL_BOUNDARY_NOTE = """This section applies only when the calling host indepen
 a shell and the workflow actually requires a Cua management command.
 Ordinary Cua tool calls in this Agent Plugin use MCP."""
 
+EXPECTED_CLAUDE_SETUP_BLOCK = """### Claude Code computer-use compatibility flag
+
+For normal Claude Code use, keep the default CLI or `cua-driver` MCP
+server path above. If the user explicitly wants Claude Code's
+vision/computer-use-style flow, they can register:
+
+```bash
+cua-driver mcp-config --client claude   # then paste + run the printed line
+```
+
+The compatibility flag is retained for old setup snippets, but the standalone
+`screenshot` tool was removed. It does not add or replace tools. Use
+`get_window_state({pid, window_id})` for a window-local accessibility snapshot
+and PNG, or `get_desktop_state()` for an explicitly authorized desktop capture.
+"""
+
 DESCRIPTION_OLD_PHRASE = "via the cua-driver CLI (default) or MCP server"
 DESCRIPTION_NEW_PHRASE = "via the Cua Driver MCP server"
+
+
+def exclude_host_specific_setup(body: str) -> str:
+    """Remove the host-specific MCP setup subsection (fail closed).
+
+    The Claude Code compatibility subsection is host-specific install/config
+    guidance (`cua-driver mcp-config --client claude`), not Computer Use
+    behavior — a host-neutral Agent Plugin already declares its MCP
+    entrypoint via mcp.json. It is projected out entirely; if upstream
+    rewrites this subsection, manual review is required.
+    """
+    count = body.count(EXPECTED_CLAUDE_SETUP_BLOCK)
+    if count != 1:
+        raise ProjectionError(
+            "expected Claude Code setup subsection not found exactly once "
+            f"in upstream SKILL.md (found {count}). Upstream host-specific "
+            "setup guidance changed — manual review required (transform "
+            "'exclude-host-specific-mcp-setup-guidance')."
+        )
+    return body.replace(EXPECTED_CLAUDE_SETUP_BLOCK, "", 1)
 
 
 def transform_description(description: str) -> str:
@@ -253,6 +294,7 @@ def project_skill_md(upstream_text: str, lock: dict) -> str:
         raise ProjectionError("upstream SKILL.md frontmatter has no usable 'description'")
     description = transform_description(original_description)
     body = transform_transport_block(body)
+    body = exclude_host_specific_setup(body)
     body = transform_shell_section(body)
     body = body.lstrip("\n")
     return "".join(
@@ -358,6 +400,7 @@ def project(root: Path) -> dict:
         "normalize-agent-skills-frontmatter",
         "insert-generated-notice",
         "prefer-agent-plugin-mcp-transport",
+        "exclude-host-specific-mcp-setup-guidance",
     ]
 
     projected["WINDOWS.md"] = transform_windows_md(
