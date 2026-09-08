@@ -13,15 +13,27 @@ here — every behavioral sentence comes from upstream except the explicitly
 declared, minimal transforms registered in upstream/projection.json:
 
     normalize-agent-skills-frontmatter   SKILL.md    (standard frontmatter; official
-                                        name/description preserved verbatim)
+                                        name preserved verbatim; the official
+                                        description is transport-normalized and
+                                        its original sha256 recorded in metadata)
     insert-generated-notice              SKILL.md    (provenance comment)
-    prefer-agent-plugin-mcp-transport    SKILL.md    (one additive transport note)
+    prefer-agent-plugin-mcp-transport    SKILL.md    (fail-closed transport
+                                        normalization: (a) the description phrase
+                                        "via the cua-driver CLI (default) or MCP
+                                        server" becomes "via the Cua Driver MCP
+                                        server"; (b) the upstream "GUI transport
+                                        defaults" block that mandates CLI-first
+                                        is replaced by the Agent Plugin MCP
+                                        transport section; (c) a boundary note
+                                        under "Using cua-driver from the shell"
+                                        scopes that section to hosts that really
+                                        provide a shell)
     remove-plugin-side-native-installer-execution  WINDOWS.md
                                         (irm|iex one-liner -> refer to official guide)
     exclude-upstream-pack-readme         README.md   (pack-level doc, not projected)
 
 Everything else is byte-exact. Transforms fail closed: if an expected
-upstream block changes upstream, projection FAILs and demands manual review
+upstream text changes, projection FAILs and demands manual review
 (instead of silently producing a divergent skill).
 
 Usage:
@@ -117,21 +129,94 @@ def generated_notice(lock: dict) -> str:
     )
 
 
-TRANSPORT_SECTION = """## Agent Plugin transport (projected)
+TRANSPORT_SECTION_REPLACEMENT = """## GUI transport in this Agent Plugin
 
-In this Agent Plugin environment, `cua-driver` is provided exclusively
-through its MCP server (the plugin's `mcp.json` declares the official
-`cua-driver mcp` stdio entrypoint). Wherever the guidance below
-demonstrates a one-off `cua-driver <tool-name> '<JSON-args>'` CLI call,
-invoke the corresponding Cua MCP tool with the same name and arguments
-instead. Do not require a shell solely because an example is written as a
-CLI invocation.
+The Agent Plugin exposes Cua Driver through one persistent
+`cua-driver mcp` stdio connection.
+
+Calls such as `click(...)`, `get_window_state(...)`, and other Cua
+tool names in this skill refer directly to the corresponding MCP tools.
+
+Do not invoke `cua-driver <tool-name> '<JSON-args>'` through a shell
+for ordinary tool calls in this Agent Plugin environment.
+
+Lifecycle, session, cursor, recording, browser, authorization, and
+verification semantics remain those defined by Cua Driver.
 """
 
+EXPECTED_TRANSPORT_BLOCK = """## GUI transport defaults — prefer cua-driver over GUI shell shims
 
-def project_frontmatter(frontmatter: dict, lock: dict) -> str:
+**Default transport is the `cua-driver` CLI for one-off calls** — `Bash`
+shelling out to `cua-driver <tool-name> '<JSON-args>'`. Each CLI invocation
+owns a disposable transport session that is cleaned up after its response.
+Use one persistent `cua-driver mcp` connection for a multi-call GUI workflow
+that needs shared cursor, recording, browser, or named-session state. A public
+session label is not a credential and a later one-shot process cannot adopt
+the previous process's lifecycle merely by repeating that label.
+
+CLI wins for isolated inspection and management because it picks up rebuilds
+instantly, failures are easier to diagnose, and there's no per-tool
+schema-load overhead. Persistent MCP wins for an ordered action loop.
+
+Every reference to `click(...)`, `get_window_state(...)` etc. in this
+skill means `cua-driver click '{...}'` — translate to MCP form only
+when MCP is requested.
+"""
+
+SHELL_HEADING = "## Using cua-driver from the shell\n"
+SHELL_BOUNDARY_NOTE = """This section applies only when the calling host independently provides
+a shell and the workflow actually requires a Cua management command.
+Ordinary Cua tool calls in this Agent Plugin use MCP."""
+
+DESCRIPTION_OLD_PHRASE = "via the cua-driver CLI (default) or MCP server"
+DESCRIPTION_NEW_PHRASE = "via the Cua Driver MCP server"
+
+
+def transform_description(description: str) -> str:
+    """Transport-normalize the official description (fail closed on drift)."""
+    count = description.count(DESCRIPTION_OLD_PHRASE)
+    if count != 1:
+        raise ProjectionError(
+            f"expected description phrase not found exactly once "
+            f"(found {count}): {DESCRIPTION_OLD_PHRASE!r}. Upstream "
+            "transport wording changed — manual review required "
+            "(transform 'prefer-agent-plugin-mcp-transport')."
+        )
+    return description.replace(DESCRIPTION_OLD_PHRASE, DESCRIPTION_NEW_PHRASE, 1)
+
+
+def transform_transport_block(body: str) -> str:
+    """Replace the upstream CLI-default transport block (fail closed)."""
+    count = body.count(EXPECTED_TRANSPORT_BLOCK)
+    if count != 1:
+        raise ProjectionError(
+            "expected transport-defaults block not found exactly once in "
+            f"upstream SKILL.md (found {count}). Upstream transport "
+            "guidance changed — manual review required (transform "
+            "'prefer-agent-plugin-mcp-transport')."
+        )
+    return body.replace(EXPECTED_TRANSPORT_BLOCK, TRANSPORT_SECTION_REPLACEMENT, 1)
+
+
+def transform_shell_section(body: str) -> str:
+    """Scope the shell/management section to hosts that provide a shell."""
+    heading_with_gap = SHELL_HEADING + "\n"
+    count = body.count(heading_with_gap)
+    if count != 1:
+        raise ProjectionError(
+            "expected 'Using cua-driver from the shell' heading not found "
+            f"exactly once (found {count}). Upstream reorganized the shell "
+            "section — manual review required (transform "
+            "'prefer-agent-plugin-mcp-transport')."
+        )
+    return body.replace(
+        heading_with_gap, heading_with_gap + SHELL_BOUNDARY_NOTE + "\n\n", 1
+    )
+
+
+def project_frontmatter(frontmatter: dict, lock: dict, description: str,
+                        original_description_sha256: str) -> str:
     name = frontmatter.get("name")
-    description = frontmatter.get("description")
     if not isinstance(name, str) or not name:
         raise ProjectionError("upstream SKILL.md frontmatter has no usable 'name'")
     if not isinstance(description, str) or not description:
@@ -147,6 +232,7 @@ def project_frontmatter(frontmatter: dict, lock: dict) -> str:
             f"  upstream: {_yaml_string(lock['repository'])}",
             f"  upstream-version: {_yaml_string(lock['version'])}",
             f"  upstream-commit: {_yaml_string(lock['commit'])}",
+            f"  upstream-description-sha256: {_yaml_string(original_description_sha256)}",
             '  projection: "agent-plugins"',
             "---",
             "",
@@ -155,15 +241,29 @@ def project_frontmatter(frontmatter: dict, lock: dict) -> str:
 
 
 def project_skill_md(upstream_text: str, lock: dict) -> str:
-    """official frontmatter -> normalized; body -> verbatim; notice+transport inserted."""
+    """Deterministic projection of the official SKILL.md.
+
+    frontmatter -> normalized (name verbatim; description transport-
+    normalized, original sha256 preserved in metadata); body -> the
+    fail-closed transport transforms below, everything else verbatim.
+    """
     frontmatter, body = parse_upstream_frontmatter(upstream_text)
+    original_description = frontmatter.get("description")
+    if not isinstance(original_description, str) or not original_description:
+        raise ProjectionError("upstream SKILL.md frontmatter has no usable 'description'")
+    description = transform_description(original_description)
+    body = transform_transport_block(body)
+    body = transform_shell_section(body)
     body = body.lstrip("\n")
     return "".join(
         [
-            project_frontmatter(frontmatter, lock),
+            project_frontmatter(
+                frontmatter,
+                lock,
+                description,
+                sha256_hex(original_description.encode("utf-8")),
+            ),
             generated_notice(lock),
-            "\n",
-            TRANSPORT_SECTION,
             "\n",
             body,
         ]

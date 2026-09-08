@@ -41,19 +41,86 @@ def projected_and_raw(root: Path):
     return skill, source
 
 
+def _relock(root: Path, name: str, path: Path) -> None:
+    """Simulate a legitimately re-pinned upstream: update the lock hash so a
+    failure comes from the transform's fail-closed matching, not the hash."""
+    lock_path = root / "upstream" / "cua.lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    lock["files"][name]["sha256"] = projection.sha256_hex(path.read_bytes())
+    lock_path.write_text(json.dumps(lock, indent=2), encoding="utf-8")
+
+
 class TestProjection:
     def test_projected_skill_body_matches_upstream(self, tmp_path):
-        """projected SKILL.md == normalized frontmatter + notice + transport
-        + upstream body VERBATIM (nothing else may differ)."""
+        """projected body == upstream body + the declared transport
+        transforms only (block replacement + shell boundary note); the
+        description is transport-normalized with its original sha256
+        preserved in metadata."""
         root = make_repo(tmp_path)
         skill, source = projected_and_raw(root)
         upstream = (source / "SKILL.md").read_text(encoding="utf-8")
         projected = (skill / "SKILL.md").read_text(encoding="utf-8")
+
+        # Frontmatter: official description transport-normalized exactly once.
+        fm, _ = projection.parse_upstream_frontmatter(upstream)
+        assert projection.DESCRIPTION_OLD_PHRASE in fm["description"]
+        assert projection.DESCRIPTION_NEW_PHRASE in projected
+        assert projection.DESCRIPTION_OLD_PHRASE not in projected
+        expected_hash = projection.sha256_hex(fm["description"].encode("utf-8"))
+        assert f'upstream-description-sha256: "{expected_hash}"' in projected
+
+        # Body: remove the declared replacements from BOTH sides and the
+        # remainder must be identical (everything else is verbatim).
         _, upstream_body = projection.parse_upstream_frontmatter(upstream)
-        # strip generated frontmatter + notice + transport section
-        after_frontmatter = projected.split("---\n", 2)[2]
-        body = after_frontmatter.split(projection.TRANSPORT_SECTION, 1)[1]
-        assert body.lstrip("\n") == upstream_body.lstrip("\n")
+        after_projected_fm = projected.split("---\n", 2)[2]
+        projected_body = after_projected_fm.split("-->\n", 1)[1]
+        rebuilt_upstream = (
+            upstream_body.replace(
+                projection.EXPECTED_TRANSPORT_BLOCK,
+                projection.TRANSPORT_SECTION_REPLACEMENT,
+            )
+        )
+        rebuilt_upstream = projection.transform_shell_section(rebuilt_upstream)
+        assert projected_body.lstrip("\n") == rebuilt_upstream.lstrip("\n")
+        # The CLI-default block itself is gone from production.
+        assert "Default transport is the `cua-driver` CLI" not in projected
+        assert "translate to MCP form only" not in projected
+
+    def test_transport_block_drift_fails_closed(self, tmp_path):
+        root = make_repo(tmp_path)
+        skill_source = root / "upstream" / "source" / "cua-driver" / "SKILL.md"
+        text = skill_source.read_text(encoding="utf-8").replace(
+            "CLI wins for isolated inspection and management",
+            "SomethingElse wins for isolated inspection and management",
+        )
+        skill_source.write_text(text, encoding="utf-8", newline="\n")
+        _relock(root, "SKILL.md", skill_source)
+        with pytest.raises(projection.ProjectionError, match="transport-defaults block"):
+            projection.project(root)
+
+    def test_description_drift_fails_closed(self, tmp_path):
+        root = make_repo(tmp_path)
+        skill_source = root / "upstream" / "source" / "cua-driver" / "SKILL.md"
+        text = skill_source.read_text(encoding="utf-8").replace(
+            "via the cua-driver CLI (default) or MCP server",
+            "via the cua-driver CLI or MCP server",
+        )
+        skill_source.write_text(text, encoding="utf-8", newline="\n")
+        _relock(root, "SKILL.md", skill_source)
+        with pytest.raises(projection.ProjectionError, match="description phrase"):
+            projection.project(root)
+
+    def test_shell_heading_drift_fails_closed(self, tmp_path):
+        root = make_repo(tmp_path)
+        skill_source = root / "upstream" / "source" / "cua-driver" / "SKILL.md"
+        text = skill_source.read_text(encoding="utf-8").replace(
+            "## Using cua-driver from the shell",
+            "## Using cua-driver from a shell",
+        )
+        skill_source.write_text(text, encoding="utf-8", newline="\n")
+        _relock(root, "SKILL.md", skill_source)
+        with pytest.raises(projection.ProjectionError, match="shell"):
+            projection.project(root)
 
     def test_only_declared_transforms_change_content(self, tmp_path):
         root = make_repo(tmp_path)
@@ -80,12 +147,7 @@ class TestProjection:
         windows.write_text(text, encoding="utf-8")
         # Simulate a legitimately re-pinned upstream: update the lock hash so
         # the failure comes from the transform's fail-closed block matching.
-        lock_path = root / "upstream" / "cua.lock.json"
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        lock["files"]["WINDOWS.md"]["sha256"] = projection.sha256_hex(
-            windows.read_bytes()
-        )
-        lock_path.write_text(json.dumps(lock, indent=2), encoding="utf-8")
+        _relock(root, "WINDOWS.md", windows)
         with pytest.raises(projection.ProjectionError, match="installer block not found"):
             projection.project(root)
 

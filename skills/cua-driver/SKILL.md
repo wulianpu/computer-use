@@ -1,12 +1,13 @@
 ---
 name: "cua-driver"
-description: "Drive a native GUI app (macOS, Windows, Linux) via the cua-driver CLI (default) or MCP server; snapshot its accessibility tree, act through snapshot-bound element tokens, native menu paths, exact window geometry, or pixel coordinates, and verify from fresh state. Use when the user asks you to operate, drive, automate, or perform a GUI task in a real application on the host, or to continue, resume, or recall recent Cua activity."
+description: "Drive a native GUI app (macOS, Windows, Linux) via the Cua Driver MCP server; snapshot its accessibility tree, act through snapshot-bound element tokens, native menu paths, exact window geometry, or pixel coordinates, and verify from fresh state. Use when the user asks you to operate, drive, automate, or perform a GUI task in a real application on the host, or to continue, resume, or recall recent Cua activity."
 license: MIT
 compatibility: "Requires a compatible locally installed cua-driver executable and an Agent Plugin host with MCP stdio support."
 metadata:
   upstream: "trycua/cua"
   upstream-version: "0.24.0"
   upstream-commit: "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520"
+  upstream-description-sha256: "54a14c4f1068179aa8ad3ec4ea776db6bb520b41997fa2f6de7ab0f5cc69bb6b"
   projection: "agent-plugins"
 ---
 <!--
@@ -19,16 +20,6 @@ Commit:     4b3396d9fe4bd3cf723b0eb8db83c18a8764b520
 Path:       libs/cua-driver/rust/Skills/cua-driver/SKILL.md
 Regenerate: scripts/project_cua_skill.py
 -->
-
-## Agent Plugin transport (projected)
-
-In this Agent Plugin environment, `cua-driver` is provided exclusively
-through its MCP server (the plugin's `mcp.json` declares the official
-`cua-driver mcp` stdio entrypoint). Wherever the guidance below
-demonstrates a one-off `cua-driver <tool-name> '<JSON-args>'` CLI call,
-invoke the corresponding Cua MCP tool with the same name and arguments
-instead. Do not require a shell solely because an example is written as a
-CLI invocation.
 
 # cua-driver
 
@@ -191,23 +182,19 @@ window ladder has been attempted and verified. Permission policy must still
 admit the display resource. Never infer desktop permission from a failed action
 or a public session label.
 
-## GUI transport defaults — prefer cua-driver over GUI shell shims
+## GUI transport in this Agent Plugin
 
-**Default transport is the `cua-driver` CLI for one-off calls** — `Bash`
-shelling out to `cua-driver <tool-name> '<JSON-args>'`. Each CLI invocation
-owns a disposable transport session that is cleaned up after its response.
-Use one persistent `cua-driver mcp` connection for a multi-call GUI workflow
-that needs shared cursor, recording, browser, or named-session state. A public
-session label is not a credential and a later one-shot process cannot adopt
-the previous process's lifecycle merely by repeating that label.
+The Agent Plugin exposes Cua Driver through one persistent
+`cua-driver mcp` stdio connection.
 
-CLI wins for isolated inspection and management because it picks up rebuilds
-instantly, failures are easier to diagnose, and there's no per-tool
-schema-load overhead. Persistent MCP wins for an ordered action loop.
+Calls such as `click(...)`, `get_window_state(...)`, and other Cua
+tool names in this skill refer directly to the corresponding MCP tools.
 
-Every reference to `click(...)`, `get_window_state(...)` etc. in this
-skill means `cua-driver click '{...}'` — translate to MCP form only
-when MCP is requested.
+Do not invoke `cua-driver <tool-name> '<JSON-args>'` through a shell
+for ordinary tool calls in this Agent Plugin environment.
+
+Lifecycle, session, cursor, recording, browser, authorization, and
+verification semantics remain those defined by Cua Driver.
 
 ### Claude Code computer-use compatibility flag
 
@@ -225,6 +212,10 @@ The compatibility flag is retained for old setup snippets, but the standalone
 and PNG, or `get_desktop_state()` for an explicitly authorized desktop capture.
 
 ## Using cua-driver from the shell
+
+This section applies only when the calling host independently provides
+a shell and the workflow actually requires a Cua management command.
+Ordinary Cua tool calls in this Agent Plugin use MCP.
 
 Tool names are `snake_case`, management subcommands are
 `kebab-case` — no ambiguity. Tools invoked as `cua-driver

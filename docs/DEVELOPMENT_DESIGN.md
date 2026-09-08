@@ -29,12 +29,13 @@ Agent → Cua MCP tools → Desktop.
 | Agent Skills | SKILL.md format |
 | MCP | agent ↔ server protocol |
 | Cua | Computer Use Runtime: observation, actions, session, window targeting, browser, platform semantics, permissions, recording |
-| **computer-use** | **packaging, upstream sync, verification, qualification** |
+| **computer-use** | **packaging, projection, upstream synchronization, verification, qualification** |
 | Agent Host | installation, MCP lifecycle, agent execution, authorization, approval |
 | Operating System | the final desktop security boundary |
 
-Every piece of self-maintained code must belong to one of the four allowed
-categories (packaging / upstream sync / verification / qualification). If it
+Every piece of self-maintained code must belong to one of the five allowed
+categories (packaging / projection / upstream synchronization / verification /
+qualification). If it
 does not, answer first: *why should this not be Cua's, the Host's, MCP's, or
 the OS's job?*
 
@@ -178,10 +179,12 @@ process.
 
 ## 10. Qualification posture
 
-- First supported platform: **Windows** (Windows 11, x86_64, interactive
-  desktop, exact candidate Cua version; Calculator, Notepad, Chrome, an
-  Electron app; DPI 100% and 150/200%; background action + foreground
-  fallback; multi-monitor).
+- Windows **qualification target matrix** (what we intend to qualify:
+  Windows 11, x86_64, interactive desktop, exact candidate Cua version;
+  Calculator, Notepad, Chrome, an Electron app; DPI 100% and 150/200%;
+  background action + foreground fallback; multi-monitor). Actual verified
+  support is defined exclusively by the receipts in
+  `upstream/compatibility.json` — nothing else confers "supported".
 - macOS is handled separately (CuaDriver.app, Accessibility/Screen
   Recording TCC, responsible application identity) — the plugin never
   "solves" TCC itself.

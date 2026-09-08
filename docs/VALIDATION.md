@@ -95,10 +95,11 @@ Receipts bind `version + upstreamCommit + skillSource + projectionMode +
 projectionDigest + pluginCommit + driver artifact sha256`; any change
 invalidates them (enforced by `verify_projection.py`).
 
-Windows qualification matrix (first supported platform): Windows 11 x86_64
+Windows qualification target matrix (intended scope): Windows 11 x86_64
 interactive desktop, exact candidate version; Calculator, Notepad, Chrome,
 an Electron app; DPI 100% and 150/200%; background action with foreground
-fallback; multi-monitor.
+fallback; multi-monitor. Actual verified support is defined exclusively by
+the receipts in `upstream/compatibility.json`.
 
 ## What CI never does
 

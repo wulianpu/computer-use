@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """sync_cua.py — download and pin the official Cua Driver skill pack.
 
-This is an upstream-sync development tool. It belongs to one of the four
-allowed self-maintained categories: packaging / projection / verification /
+This is an upstream-sync development tool. It belongs to one of the five
+allowed self-maintained categories: packaging / projection / upstream
+synchronization / verification /
 qualification. It is NOT part of the plugin runtime surface.
 
 Scope (design doc v2, §22): sync downloads and pins ONLY. It does not touch
