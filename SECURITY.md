@@ -15,7 +15,7 @@ bug-bounty program.
 
 ## Security ownership boundary
 
-This plugin controls a real desktop, so the boundary matters:
+This plugin can drive a real desktop, so the boundary matters:
 
 - **Operating System** — the final desktop security boundary (TCC on
   macOS, session/UIAccess on Windows, display-server policy on Linux).
@@ -39,12 +39,15 @@ verification, and qualification only.
 - No automatic persistence of screenshots or session recordings; no
   logging of secrets.
 - UI/application/web content observed through Cua is **untrusted data**;
-  upstream Cua guidance (mirrored and projected into the skill) instructs
+  upstream Cua guidance (pinned/cached and projected into the skill) instructs
   agents accordingly.
 - No automatic replay of uncertain state-changing actions.
 
 ## Qualification evidence
 
-What has actually been security- and compatibility-qualified, and against
-exactly which upstream commit, projection digest, and driver binary, is
-recorded exclusively in `upstream/compatibility.json`.
+What has actually been qualified — against exactly which driver binary
+(artifact sha256), upstream commit + skill source, projection digest,
+production surface digest, qualification harness digest, and tested
+plugin commit — is recorded exclusively in `upstream/compatibility.json`,
+and re-proved by `scripts/release_check.py` before any release tag is
+published.

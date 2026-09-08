@@ -72,14 +72,15 @@ digests (`projectionDigest`, `pluginSurfaceDigest`,
 `qualificationHarnessDigest`) won't match. Re-run, on a real machine:
 
 ```bash
-python scripts/mcp_probe.py        # L2
-python scripts/e2e_calculator.py --yes   # L3 (drives a real desktop)
+uv run python scripts/mcp_probe.py             # L2
+uv run python scripts/e2e_calculator.py --yes  # L3 (drives a real desktop)
 ```
 
 …then re-sign the receipt (bind: version, upstreamCommit, skillSource,
 projectionMode, projectionDigest, pluginSurfaceDigest,
-qualificationHarnessDigest, pluginCommit, driver artifact sha256) and
-finish with `uv run python scripts/release_check.py`.
+qualificationHarnessDigest, testedPluginCommit = the exact commit the
+L2/L3 runs executed against, driver artifact sha256) and finish with
+`uv run python scripts/release_check.py`.
 
 ## Releases
 

@@ -77,7 +77,7 @@ def requalify_receipt(root: Path) -> None:
     import verify_projection as _vp
 
     entry["qualificationHarnessDigest"] = _vp.qualification_harness_digest(root)
-    entry["pluginCommit"] = git(root, "rev-parse", "HEAD")
+    entry["testedPluginCommit"] = git(root, "rev-parse", "HEAD")
     compat_path.write_text(
         json.dumps(compat, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -111,8 +111,9 @@ class TestReleaseCheckPositive:
         git(root, "tag", "-a", "v0.1.0", "-m", "release")
         checks = release_check.run_checks(root, "v0.1.0")
         assert failures(checks) == []
-        unchanged = [c for c in checks if "production unchanged" in c.name]
-        assert unchanged and unchanged[0].ok
+        for scope in ("production surface unchanged", "qualification harness unchanged"):
+            chain = [c for c in checks if scope in c.name]
+            assert chain and chain[0].ok, scope
 
 
 class TestReleaseCheckNegative:
@@ -139,7 +140,7 @@ class TestReleaseCheckNegative:
 
     def test_production_change_after_qualification_blocks_release(self, tmp_path):
         """Even with digests aligned, a production byte changed after the
-        receipt's pluginCommit must block the release (docs-only is fine)."""
+        receipt's testedPluginCommit must block the release (docs-only is fine)."""
         root = make_git_repo(tmp_path)
         requalify_receipt(root)
         git(root, "add", "-A")
@@ -150,4 +151,29 @@ class TestReleaseCheckNegative:
         git(root, "commit", "-q", "-m", "prod change")
         git(root, "tag", "-a", "v0.1.0", "-m", "release")
         checks = release_check.run_checks(root, "v0.1.0")
-        assert any("production unchanged" in name for name in failures(checks))
+        assert any("production surface unchanged" in name for name in failures(checks))
+
+    def test_harness_change_after_qualification_blocks_release(self, tmp_path):
+        """A qualification-harness edit after the tested commit blocks the
+        release even if someone hand-re-signs the digests in the receipt."""
+        root = make_git_repo(tmp_path)
+        requalify_receipt(root)
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "qualification receipt")
+        harness = root / "scripts" / "mcp_client.py"
+        harness.write_text(harness.read_text(encoding="utf-8") + "\n# edited\n", encoding="utf-8")
+        # hand-re-sign the harness digest so digest equality alone would pass
+        import sys as _sys
+
+        _sys.path.insert(0, str(SCRIPTS))
+        import verify_projection as _vp
+
+        compat_path = root / "upstream" / "compatibility.json"
+        compat = json.loads(compat_path.read_text(encoding="utf-8"))
+        compat["verified"][0]["qualificationHarnessDigest"] = _vp.qualification_harness_digest(root)
+        compat_path.write_text(json.dumps(compat, indent=2) + "\n", encoding="utf-8", newline="\n")
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "-m", "harness edit + hand-re-signed digest")
+        git(root, "tag", "-a", "v0.1.0", "-m", "release")
+        checks = release_check.run_checks(root, "v0.1.0")
+        assert any("qualification harness unchanged" in name for name in failures(checks))

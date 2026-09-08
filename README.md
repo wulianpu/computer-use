@@ -193,8 +193,10 @@ Qualification receipts bind four evidence chains — the driver artifact
 sha256 (what we run), `pluginSurfaceDigest` (what we ship),
 `projectionDigest` (the guidance we project), and
 `qualificationHarnessDigest` (what produced the evidence) — plus
-`version + upstreamCommit + skillSource + projectionMode + pluginCommit`;
-any change invalidates them.
+`version + upstreamCommit + skillSource + projectionMode +
+testedPluginCommit` (the exact commit the L2/L3 runs executed against;
+`release_check.py` proves production AND harness unchanged from it to the
+release tag); any change invalidates them.
 
 ## Maintainer documentation
 

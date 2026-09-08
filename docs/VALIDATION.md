@@ -19,8 +19,9 @@ uv run python scripts/verify_projection.py  # skill tree == regeneration, offlin
 uv run python -m pytest -v                  # unit tests + fake MCP server tests
 ```
 
-Dependencies come from the committed `uv.lock` (`--locked`), so the same
-commit always validates with the same tool versions. Before tagging a
+Python dependencies come from the committed `uv.lock` (`--locked`) and
+are reproducibly locked; the GitHub-hosted runner image itself is not
+bit-reproducible (pinned to ubuntu-24.04 to bound the drift). Before tagging a
 release, `uv run python scripts/release_check.py` machine-proves the
 evidence chain (see the release acceptance list in DEVELOPMENT_DESIGN §14).
 
@@ -52,8 +53,8 @@ validators are the gate; a skills-ref cross-check can be run manually.
 ## Level 2 — Cua MCP contract (needs real `cua-driver`)
 
 ```bash
-python scripts/mcp_probe.py
-python scripts/mcp_probe.py --snapshot   # writes the contract snapshot
+uv run python scripts/mcp_probe.py
+uv run python scripts/mcp_probe.py --snapshot   # writes the contract snapshot
 ```
 
 Checks `cua-driver` on PATH → `--version` vs candidate → spawn
@@ -76,8 +77,8 @@ one.
 ## Level 3 — Desktop qualification (real OS + GUI + Cua)
 
 ```bash
-python scripts/e2e_calculator.py         # dry run: prints the plan only
-python scripts/e2e_calculator.py --yes   # actually drives the desktop
+uv run python scripts/e2e_calculator.py          # dry run: prints the plan only
+uv run python scripts/e2e_calculator.py --yes      # actually drives the desktop
 ```
 
 The Calculator `6 × 7 = 42` flow: `start_session` → discover Calculator →
@@ -98,7 +99,7 @@ elsewhere is not this run's concern.
 After L2 + L3 pass on a concrete environment, add a receipt to
 `upstream/compatibility.json` → `verified` (see `upstream/README.md`).
 Receipts bind `version + upstreamCommit + skillSource + projectionMode +
-projectionDigest + pluginCommit + driver artifact sha256`; any change
+projectionDigest + testedPluginCommit + driver artifact sha256`; any change
 invalidates them (enforced by `verify_projection.py`).
 
 Windows qualification target matrix (intended scope): Windows 11 x86_64

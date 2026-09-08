@@ -56,9 +56,13 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
 
 ### Qualification (Windows)
 
-- Receipt in `upstream/compatibility.json` bound to: Cua 0.24.0,
-  upstream commit, skill source, projection mode + digest, plugin commit,
-  and the official cua-driver Windows artifact sha256.
+- Receipt in `upstream/compatibility.json` binding four evidence chains:
+  the official cua-driver Windows artifact sha256 (what we run),
+  `pluginSurfaceDigest` over plugin.json + mcp.json + skills/ (what we
+  ship), `projectionDigest` (the guidance we project), and
+  `qualificationHarnessDigest` over the harness that produced the evidence
+  — plus upstream commit/skill source, projection mode, and the exact
+  `testedPluginCommit` the L2/L3 runs executed against.
 - L2: negotiated-protocol compatibility qualification (2025-06-18 as
   negotiated by the driver; 57 tools, required subset 18/18).
 - L3: Calculator `6 × 7 = 42` semantic-only E2E — launch-ownership proof,
@@ -67,7 +71,7 @@ official `cua-driver mcp` runtime. It implements no Computer Use behavior.
 
 ### Tests & CI
 
-- 72 tests: projection determinism and fail-closed drift, receipt
+- 75 tests: projection determinism and fail-closed drift, receipt
   invalidation, Agent Skills frontmatter conformance, mcp.json template
   determinism, supply-chain shape checks, and the MCP client against a
   fake server. Portable CI workflow (no Cua, no desktop).

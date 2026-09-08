@@ -26,7 +26,8 @@ desktop security behavior.
 11. write a fresh receipt in upstream/compatibility.json
       (version, tag, upstreamCommit, skillSource, projectionMode,
        projectionDigest, pluginSurfaceDigest, qualificationHarnessDigest,
-       pluginCommit, driver artifact sha256)
+       testedPluginCommit (the exact commit L2/L3 ran against),
+       driver artifact sha256)
 12. tag the release locally, run uv run python scripts/release_check.py,
       and push/publish only after it prints RELEASE READY
 ```

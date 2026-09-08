@@ -37,10 +37,15 @@ projected skill tree — any skill change changes it.
 The live qualification record; it never changes automatically on a Cua
 release. An environment may only be added to `verified` after passing
 Level 2 (MCP contract probe) and Level 3 (real desktop qualification).
-Receipts are bound to the exact pinned source AND projection —
-`verify_projection.py` drops nothing silently; it FAILs on any receipt
-whose `version`, `upstreamCommit`, `skillSource`, `projectionMode`, or
-`projectionDigest` no longer matches:
+Receipts bind four evidence chains — driver artifact sha256 (what we
+run), `pluginSurfaceDigest` (what we ship), `projectionDigest` (guidance
+projected), `qualificationHarnessDigest` (what produced the evidence) —
+plus the pinned source fields and `testedPluginCommit` (the exact commit
+the L2/L3 runs executed against; `release_check.py` additionally proves
+production AND harness are unchanged from it to the release tag).
+`verify_projection.py` FAILs on any receipt whose `version`,
+`upstreamCommit`, `skillSource`, `projectionMode`, `projectionDigest`,
+`pluginSurfaceDigest`, or `qualificationHarnessDigest` no longer matches:
 
 ```json
 {
@@ -50,7 +55,9 @@ whose `version`, `upstreamCommit`, `skillSource`, `projectionMode`, or
   "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
   "projectionMode": "raw-skill-normalized",
   "projectionDigest": "sha256:…",
-  "pluginCommit": "<computer-use git commit the qualification ran against>",
+  "pluginSurfaceDigest": "sha256:…",
+  "qualificationHarnessDigest": "sha256:…",
+  "testedPluginCommit": "<the EXACT computer-use commit the L2/L3 runs executed against>",
   "platform": "windows-x86_64",
   "environment": "Windows 11 build 26200, interactive desktop, DPI 100%",
   "driver": {

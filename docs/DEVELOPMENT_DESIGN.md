@@ -182,7 +182,9 @@ evidence chains — what we run (`driver artifact sha256`), what we ship
 guidance we project (`projectionDigest`), and what produced the evidence
 (`qualificationHarnessDigest`: mcp_client/mcp_probe/e2e_calculator +
 required-tools contract) — plus `(version, upstreamCommit, skillSource,
-projectionMode, pluginCommit)`. Any change to any chain invalidates them.
+projectionMode, testedPluginCommit)`; `release_check.py` re-proves that
+production AND harness are unchanged from the tested commit to the
+release tag. Any change to any chain invalidates them.
 
 Toolchain: Python ≥3.12 with dependencies locked (`uv.lock`, installed
 via `uv sync --locked`), ruff for lint/format; all development-only. The
@@ -256,9 +258,11 @@ plugin qualifies).
 
 ## 14. v0.1.0 Release Acceptance
 
-The authoritative acceptance list for the v0.1.0 release. Every item must
-PASS before the version is tagged; qualification evidence (not claims)
-satisfies the L2/L3 items.
+The authoritative acceptance list for the v0.1.0 release. Every item
+must PASS before the release tag is **pushed or published** (create the
+tag locally, run `scripts/release_check.py`, publish only on RELEASE
+READY — the tag-push CI re-proves it server-side); qualification
+evidence (not claims) satisfies the L2/L3 items.
 
 ```text
 Agent Plugins official schemas PASS          (validate_plugin.py, pinned schemas)
@@ -278,7 +282,8 @@ Owned-only cleanup PASS                      (baseline-proven ownership, zero le
 Verified receipt current                     (compatibility.json binds version/commit/
                                               skillSource/projectionMode/projectionDigest/
                                               pluginSurfaceDigest/qualificationHarnessDigest/
-                                              pluginCommit/driver sha256)
+                                              testedPluginCommit/driver sha256)
+Production+harness unchanged since tested    (release_check git-ancestry proof to the tag)
 Machine release gate PASS                    (scripts/release_check.py prints RELEASE READY)
 LICENSE / THIRD_PARTY_NOTICES PASS           (attribution matches lock)
 ```
