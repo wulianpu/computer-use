@@ -27,8 +27,10 @@ def make_repo(tmp_path: Path) -> Path:
     for name in ("mcp_client.py", "mcp_probe.py", "e2e_calculator.py"):
         shutil.copy(ROOT / "scripts" / name, root / "scripts" / name)
     (root / "tests" / "contract").mkdir(parents=True)
-    shutil.copy(ROOT / "tests" / "contract" / "required-tools.json",
-                root / "tests" / "contract" / "required-tools.json")
+    shutil.copy(
+        ROOT / "tests" / "contract" / "required-tools.json",
+        root / "tests" / "contract" / "required-tools.json",
+    )
     shutil.copy(ROOT / "upstream" / "cua.lock.json", root / "upstream" / "cua.lock.json")
     shutil.copytree(
         ROOT / "upstream" / "source" / "cua-driver",
