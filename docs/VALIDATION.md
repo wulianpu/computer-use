@@ -58,6 +58,15 @@ default (this tool produces qualification evidence);
 refuses over versions. Contract rule: required ⊆ actual; tool count is
 never asserted.
 
+Protocol scope (deliberate): this is a **negotiated Cua MCP compatibility
+qualification** — the harness validates the protocol revision negotiated
+with the server under test (2025-06-18 with Cua 0.24.0, the newest the
+driver supports; the client downgrades automatically if a server
+negotiates older). It does NOT claim an independent modern+legacy
+protocol matrix. When MCP protocol coverage needs to grow, the plan is to
+adopt the official MCP SDK for the harness rather than expand this custom
+one.
+
 ## Level 3 — Desktop qualification (real OS + GUI + Cua)
 
 ```bash

@@ -12,9 +12,17 @@ custom harness is acceptable when it improves deterministic qualification
 NEVER part of the production plugin — the production path is always:
 Agent Host -> mcp.json -> `cua-driver mcp` (official Cua entrypoint).
 
-Capabilities: spawn stdio server, MCP initialize handshake (modern
-protocol first, legacy fallback), requests, notifications, tools/list,
-tools/call, per-request timeout, stderr capture, clean shutdown.
+Protocol scope: this harness performs a NEGOTIATED compatibility
+qualification — it offers the newest protocol revision it knows and
+downgrades automatically when the server negotiates an older one. It does
+not claim an independent modern+legacy protocol matrix; when broader
+protocol coverage is needed, adopt the official MCP SDK instead of
+growing this harness.
+
+Capabilities: spawn stdio server, MCP initialize handshake (newest-known
+protocol first, automatic downgrade), requests, notifications,
+tools/list, tools/call, per-request timeout, stderr capture, clean
+shutdown.
 """
 
 from __future__ import annotations

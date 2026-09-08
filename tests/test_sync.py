@@ -27,17 +27,47 @@ class TestVersionFromTag:
 
 
 class TestCheckShape:
+    def files(self):
+        return [(name, "file") for name in sync_cua.EXPECTED_FILES]
+
     def test_exact_set_passes(self):
-        assert sync_cua.check_shape(sync_cua.EXPECTED_FILES) == set(sync_cua.EXPECTED_FILES)
+        assert sync_cua.check_shape(self.files()) == set(sync_cua.EXPECTED_FILES)
 
     def test_extra_file_fails_closed(self):
         with pytest.raises(sync_cua.SyncError, match="shape changed"):
-            sync_cua.check_shape([*sync_cua.EXPECTED_FILES, "HISTORY.md"])
+            sync_cua.check_shape(self.files() + [("HISTORY.md", "file")])
 
     def test_missing_file_fails_closed(self):
-        files = [f for f in sync_cua.EXPECTED_FILES if f != "BROWSER.md"]
+        files = [(n, "file") for n in sync_cua.EXPECTED_FILES if n != "BROWSER.md"]
         with pytest.raises(sync_cua.SyncError, match="shape changed"):
             sync_cua.check_shape(files)
+
+    def test_new_upstream_directory_fails_closed(self):
+        entries = self.files() + [("references", "dir")]
+        with pytest.raises(sync_cua.SyncError, match=r"directories=\['references'\]"):
+            sync_cua.check_shape(entries)
+
+    def test_file_becomes_directory_fails_closed(self):
+        entries = [(n, "dir" if n == "SKILL.md" else "file") for n in sync_cua.EXPECTED_FILES]
+        with pytest.raises(sync_cua.SyncError, match="shape changed"):
+            sync_cua.check_shape(entries)
+
+
+class TestParseLsTree:
+    def test_parses_non_recursive_children_with_kinds(self):
+        out = (
+            "100644 blob aa\tlibs/cua-driver/rust/Skills/cua-driver/SKILL.md\n"
+            "100644 blob bb\tlibs/cua-driver/rust/Skills/cua-driver/WINDOWS.md\n"
+            "040000 tree cc\tlibs/cua-driver/rust/Skills/cua-driver/references\n"
+        )
+        entries = sync_cua._parse_ls_tree(out, "libs/cua-driver/rust/Skills/cua-driver")
+        assert ("SKILL.md", "file") in entries
+        assert ("references", "dir") in entries
+        assert len(entries) == 3
+
+    def test_ignores_the_directory_row_itself(self):
+        out = "040000 tree dd\tlibs/cua-driver/rust/Skills/cua-driver\n"
+        assert sync_cua._parse_ls_tree(out, "libs/cua-driver/rust/Skills/cua-driver") == []
 
 
 class TestLock:
@@ -67,7 +97,7 @@ class FakeUpstream:
         return "f" * 40
 
     def list_dir(self, commit, path):
-        return list(sync_cua.EXPECTED_FILES)
+        return [(name, "file") for name in sync_cua.EXPECTED_FILES]
 
     def fetch_file(self, commit, path):
         return f"content of {path}\n".encode()

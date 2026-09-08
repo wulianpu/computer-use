@@ -1,8 +1,9 @@
 name: validate
 
-# Portable CI (design doc §57, §58): validates the Agent Plugin package,
-# the thin Skill, the upstream mirror hashes, and runs unit tests plus the
-# fake-MCP tests. It installs NO Cua and touches NO desktop — live
+# Portable CI (design doc v2): validates the Agent Plugins package, the
+# projected official Skill, the raw upstream source hashes, the projection
+# integrity (regeneration equality + receipts), and runs unit tests plus
+# the fake-MCP tests. It installs NO Cua and touches NO desktop — live
 # qualification (mcp_probe, Calculator E2E, desktop matrix) runs on a
 # dedicated interactive qualification host, never here.
 

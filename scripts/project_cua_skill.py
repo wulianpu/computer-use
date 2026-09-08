@@ -223,7 +223,7 @@ def project(root: Path) -> dict:
     lock = load_lock(root)
     source_dir = root / UPSTREAM_SOURCE_REL
 
-    # Offline shape check (fail closed on any source-tree drift, mirroring
+    # Offline shape check (fail closed on any source-tree drift, matching
     # sync_cua's online check): an unexpected file in the source cache is
     # manual-review territory, not something to silently skip.
     if source_dir.is_dir():
