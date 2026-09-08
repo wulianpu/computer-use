@@ -44,6 +44,7 @@ CLICKABLE_HINTS = ("button", "press", "invoke", "click")
 TOKEN_KEYS = ("element_token", "token", "element", "ref", "ax_token", "elementId", "element_id", "id")
 TEXT_KEYS = ("name", "title", "label", "value", "text", "role")
 DISPLAY_HINTS = ("display", "result", "expression", "显示", "结果")
+CLOSE_BUTTON_LABELS = ("关闭 计算器", "关闭", "close calculator", "close")
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -257,10 +258,116 @@ def plan_only(args) -> int:
     return 0
 
 
+def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: float) -> None:
+    """Best-effort, semantic-only cleanup of the app this E2E launched.
+
+    Two paths, both semantic (no pixel fallback):
+      1. app running with its own pid -> kill_app (never the UWP host pid)
+      2. suspended UWP whose window is still on screen -> semantic click on
+         the title-bar close button
+    Failures warn but never flip a PASS into a FAIL.
+    """
+    # 1. running app with a real pid
+    try:
+        apps = extract_apps(result_payload(client.tools_call(
+            "list_apps", build_args(schemas.get("list_apps"), {}), timeout=timeout)))
+        entry = next(
+            (a for a in apps
+             if any(n in element_text(a).lower() for n in needles) and a.get("pid")),
+            None,
+        )
+        if entry:
+            client.tools_call("kill_app", {"pid": entry["pid"]}, timeout=30.0)
+            print(f"cleanup: kill_app OK ({entry.get('name')!r}, pid={entry['pid']})")
+            return
+    except Exception as exc:
+        print(f"WARNING: cleanup list_apps failed: {exc}")
+
+    # 2. leftover window (e.g. suspended UWP) -> title-bar close button.
+    #    Cua delivery_mode contract: 'background' is the mandatory first
+    #    attempt; only a verified no-op justifies re-issuing the same action
+    #    with 'foreground' (optionally after bring_to_front for a suspended
+    #    window). Never escalate preemptively.
+    try:
+        windows = extract_windows(result_payload(client.tools_call(
+            "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
+        calc = [w for w in windows if any(n in element_text(w).lower() for n in needles)]
+        if not calc:
+            print("cleanup: calculator no longer running, nothing to close")
+            return
+        w = calc[0]
+        wargs = {
+            "window_id": window_id(w),
+            "windowId": window_id(w),
+            "id": window_id(w),
+            "pid": w.get("pid"),
+        }
+        state = result_payload(client.tools_call(
+            "get_window_state", build_args(schemas.get("get_window_state"), wargs),
+            timeout=timeout))
+        button = find_button(collect_elements(state), CLOSE_BUTTON_LABELS)
+        token = element_token(button)
+
+        def click_close(delivery_mode: str | None = None) -> None:
+            click_args = dict(wargs)
+            if token:
+                click_args[token[0]] = token[1]
+            if delivery_mode:
+                click_args["delivery_mode"] = delivery_mode
+            client.tools_call(
+                "click", build_args(schemas.get("click"), click_args), timeout=30.0)
+
+        def calculator_windows() -> list:
+            wins = extract_windows(result_payload(client.tools_call(
+                "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
+            return [w2 for w2 in wins if any(n in element_text(w2).lower() for n in needles)]
+
+        need_escalation = False
+        try:
+            click_close()  # background: mandatory first attempt
+            time.sleep(1.5)  # UWP close may lag behind the unverifiable effect
+            need_escalation = bool(calculator_windows())
+        except mcp_client.McpError as exc:
+            # structured background rejection (e.g. background_unavailable):
+            # the delivery_mode contract says re-issue the same action with
+            # 'foreground' exactly now.
+            print(f"cleanup: background click rejected by driver ({exc}); escalating")
+            need_escalation = True
+        if need_escalation:
+            try:
+                client.tools_call(
+                    "bring_to_front", build_args(schemas.get("bring_to_front"), wargs),
+                    timeout=30.0)
+            except Exception:
+                pass  # best-effort wake-up; the foreground click may still work
+            try:
+                click_close("foreground")
+            except mcp_client.McpError as exc:
+                if not any(word in str(exc).lower() for word in ("closed", "stale", "invalid")):
+                    raise
+                # the window vanished mid-escalation: the background click
+                # had actually worked; fall through and re-check.
+            time.sleep(1.5)
+            remaining = calculator_windows()
+        else:
+            remaining = []
+        if remaining:
+            print(f"WARNING: cleanup clicked close but {len(remaining)} calculator "
+                  "window(s) remain — close manually")
+        else:
+            print("cleanup: window closed via title-bar close button "
+                  "(semantic click, background->foreground escalation)")
+    except Exception as exc:
+        print(f"WARNING: cleanup failed (close the calculator manually): {exc}")
+
+
 def run_qualification(args) -> int:
     failures: list[str] = []
     session_started = False
+    launched = False
+    needles = [n.strip().lower() for n in args.app.split(",") if n.strip()]
     client: mcp_client.McpStdioClient | None = None
+    schemas: dict = {}
 
     resolved = shutil.which(args.command)
     if not resolved:
@@ -287,7 +394,6 @@ def run_qualification(args) -> int:
         apps_result = client.tools_call("list_apps", build_args(schemas.get("list_apps"), {}),
                                         timeout=args.timeout)
         apps = extract_apps(result_payload(apps_result))
-        needles = [n.strip().lower() for n in args.app.split(",") if n.strip()]
         matches = [a for a in apps if any(n in element_text(a).lower() for n in needles)]
         if not matches:
             raise AssertionError(
@@ -307,6 +413,7 @@ def run_qualification(args) -> int:
         launch_candidates.setdefault("session", session_id)
         client.tools_call("launch_app", build_args(schemas.get("launch_app"), launch_candidates),
                           timeout=args.timeout)
+        launched = True
         print(f"launch_app OK ({app_name!r})")
         time.sleep(args.settle)
 
@@ -393,6 +500,10 @@ def run_qualification(args) -> int:
     except Exception as exc:  # qualification evidence, not a crash traceback
         failures.append(f"{type(exc).__name__}: {exc}")
     finally:
+        # Test hygiene: close what we launched, inside the session, through
+        # the same semantic Cua path (see cleanup_launched_app).
+        if client and launched:
+            cleanup_launched_app(client, schemas, needles, args.timeout)
         if client and session_started:
             try:
                 client.tools_call("end_session", {}, timeout=30.0)
