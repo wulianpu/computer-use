@@ -32,8 +32,9 @@ independently.
 - Qualification receipt bound to `version + upstreamCommit + skillSource +
   projectionMode + projectionDigest + pluginCommit + driver artifact
   sha256`: Windows 11 (build 26200) x86_64 interactive desktop, DPI 100%,
-  cua-driver 0.24.0 (sha256-verified release binary). L2: handshake
-  2025-06-18, 57 tools, required subset 18/18. L3: Calculator `6 × 7 = 42`
+  cua-driver 0.24.0 (sha256-verified release binary). L2: negotiated-protocol
+  compatibility qualification (2025-06-18 as negotiated by the driver),
+  57 tools, required subset 18/18. L3: Calculator `6 × 7 = 42`
   with launch-ownership proof, per-click element_token assertions,
   structured elements + image content, digit-bounded result match,
   owned-only cleanup with zero leftover windows.
