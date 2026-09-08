@@ -25,9 +25,9 @@ To check your installation the way this project does:
 
 ```bash
 git clone https://github.com/wulianpu/computer-use
-cd computer-use && pip install -e ".[dev]"
-python scripts/mcp_probe.py          # Level 2: real MCP contract check
-python scripts/e2e_calculator.py     # dry run; --yes drives a real desktop
+cd computer-use && uv sync --locked --extra dev
+uv run python scripts/mcp_probe.py       # Level 2: real MCP contract check
+uv run python scripts/e2e_calculator.py  # dry run; --yes drives a real desktop
 ```
 
 ## Requirements
@@ -150,20 +150,20 @@ Operating OS   → the final desktop security boundary
 ```bash
 uv sync --locked --extra dev
 
-python scripts/sync_cua.py --tag cua-driver-rs-v0.24.0   # download + pin
-python scripts/project_cua_skill.py                      # generate skills/
-python scripts/verify_upstream.py                        # raw hashes vs lock
-python scripts/verify_projection.py                      # regeneration proof
-python scripts/validate_plugin.py                        # schemas + policy
-python scripts/release_check.py                          # machine-provable gate
+uv run python scripts/sync_cua.py --tag cua-driver-rs-v0.24.0   # download + pin
+uv run python scripts/project_cua_skill.py                      # generate skills/
+uv run python scripts/verify_upstream.py                        # raw hashes vs lock
+uv run python scripts/verify_projection.py                      # regeneration proof
+uv run python scripts/validate_plugin.py                        # schemas + policy
+uv run python scripts/release_check.py                          # machine-provable gate
 uv run ruff check scripts tests && uv run ruff format --check scripts tests
 uv run python -m pytest -v
 
 # Requires a real cua-driver on PATH (Level 2+)
-python scripts/mcp_probe.py --snapshot
+uv run python scripts/mcp_probe.py --snapshot
 
 # Requires a real interactive desktop (Level 3); dry run by default
-python scripts/e2e_calculator.py --yes
+uv run python scripts/e2e_calculator.py --yes
 ```
 
 ### Development tools
@@ -189,9 +189,12 @@ python scripts/e2e_calculator.py --yes
 | 3 | Desktop qualification | real OS + GUI + Cua | structured/image state, semantic actions with asserted element tokens, exact result verification, ownership-proven cleanup |
 | 4 | Supported | concrete version + platform receipts in `upstream/compatibility.json` | support matrix |
 
-Qualification receipts bind `version + upstreamCommit + skillSource +
-projectionMode + projectionDigest + pluginSurfaceDigest + pluginCommit +
-driver artifact sha256`; any change invalidates them.
+Qualification receipts bind four evidence chains — the driver artifact
+sha256 (what we run), `pluginSurfaceDigest` (what we ship),
+`projectionDigest` (the guidance we project), and
+`qualificationHarnessDigest` (what produced the evidence) — plus
+`version + upstreamCommit + skillSource + projectionMode + pluginCommit`;
+any change invalidates them.
 
 ## Maintainer documentation
 

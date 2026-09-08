@@ -10,13 +10,19 @@ Runs in ordinary CI (`.github/workflows/validate.yml`) and on any machine
 with Python 3.12+:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --locked --extra dev
 
-python scripts/validate_plugin.py    # official pinned schemas + project policy
-python scripts/verify_upstream.py    # raw source hashes vs lock, offline
-python scripts/verify_projection.py  # skill tree == regeneration, offline
-python -m pytest -v                  # unit tests + fake MCP server tests
+uv run ruff check scripts tests && uv run ruff format --check scripts tests
+uv run python scripts/validate_plugin.py    # official pinned schemas + project policy
+uv run python scripts/verify_upstream.py    # raw source hashes vs lock, offline
+uv run python scripts/verify_projection.py  # skill tree == regeneration, offline
+uv run python -m pytest -v                  # unit tests + fake MCP server tests
 ```
+
+Dependencies come from the committed `uv.lock` (`--locked`), so the same
+commit always validates with the same tool versions. Before tagging a
+release, `uv run python scripts/release_check.py` machine-proves the
+evidence chain (see the release acceptance list in DEVELOPMENT_DESIGN §14).
 
 What each proves:
 

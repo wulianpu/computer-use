@@ -162,8 +162,9 @@ version-check wrapper.
 | `scripts/verify_projection.py` | verification | offline: skill tree == regeneration, projection.json/report consistency, receipt validity (projection digest bound) |
 | `scripts/validate_plugin.py` | verification | pinned official schemas + project policy, offline; mcp.json deterministic template; projected-skill Agent Skills conformance |
 | `scripts/mcp_client.py` | verification | development-only MCP qualification harness (custom harness acceptable; official SDK acceptable; never production) |
-| `scripts/mcp_probe.py` | qualification (L2) | handshake, tools/list, required subset, optional `--snapshot` contract snapshot for upgrade diffs |
+| `scripts/mcp_probe.py` | qualification (L2) | handshake (real notifications/initialized lifecycle, negotiated-version validation, pagination-aware tools/list), required subset, optional `--snapshot` contract snapshot |
 | `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only with asserted element tokens, ownership-proven (`owned_window_ids = {selected window}`), exact digit-bounded result, owned-only cleanup |
+| `scripts/release_check.py` | verification | machine-proves the release evidence chain: tag/version/CHANGELOG alignment, digests vs receipts (projection + surface + harness), production unchanged since the qualified commit, licensing; prints RELEASE READY |
 
 Validation model: the **official Agent Plugins schemas, pinned as local
 copies under `schemas/agent-plugins/1.0.0/`, are the authority** for
@@ -175,15 +176,17 @@ reference implementation) is demonstration software; it is not a CI gate
 here — the deterministic validators are, and a skills-ref cross-check can
 be run manually where available.
 
-Qualification receipts in `upstream/compatibility.json` are bound to
-`(version, upstreamCommit, skillSource, projectionMode, projectionDigest)`
-— any same-version re-pin or projection change invalidates them — and
-record the plugin commit plus the exact driver artifact digest the
-evidence was produced against.
+Qualification receipts in `upstream/compatibility.json` bind four
+evidence chains — what we run (`driver artifact sha256`), what we ship
+(`pluginSurfaceDigest`: plugin.json + mcp.json + skills/cua-driver), the
+guidance we project (`projectionDigest`), and what produced the evidence
+(`qualificationHarnessDigest`: mcp_client/mcp_probe/e2e_calculator +
+required-tools contract) — plus `(version, upstreamCommit, skillSource,
+projectionMode, pluginCommit)`. Any change to any chain invalidates them.
 
-Toolchain: Python ≥3.12, pytest/jsonschema/PyYAML as *development*
-dependencies only. The plugin runtime has no Python, no Node, no custom
-process.
+Toolchain: Python ≥3.12 with dependencies locked (`uv.lock`, installed
+via `uv sync --locked`), ruff for lint/format; all development-only. The
+plugin runtime has no Python, no Node, no custom process.
 
 ## 10. Qualification posture
 
@@ -274,7 +277,9 @@ Calculator 6 × 7 = 42 PASS                   (semantic-only, element_token gate
 Owned-only cleanup PASS                      (baseline-proven ownership, zero leftovers)
 Verified receipt current                     (compatibility.json binds version/commit/
                                               skillSource/projectionMode/projectionDigest/
+                                              pluginSurfaceDigest/qualificationHarnessDigest/
                                               pluginCommit/driver sha256)
+Machine release gate PASS                    (scripts/release_check.py prints RELEASE READY)
 LICENSE / THIRD_PARTY_NOTICES PASS           (attribution matches lock)
 ```
 

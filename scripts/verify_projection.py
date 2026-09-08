@@ -47,6 +47,30 @@ CONTENT_TRANSFORM_IDS = {
 }
 PROJECTED_FILES = ("SKILL.md", *projection.COMPANIONS)
 
+# The qualification harness that produces L2/L3 evidence. Its digest is
+# bound into receipts so a harness edit invalidates qualification exactly
+# like a production edit does ("what produced the evidence").
+HARNESS_FILES = (
+    "scripts/mcp_client.py",
+    "scripts/mcp_probe.py",
+    "scripts/e2e_calculator.py",
+    "tests/contract/required-tools.json",
+)
+
+
+def qualification_harness_digest(root: Path) -> str:
+    """SHA256 over the canonical (sorted path, hash) list of the harness."""
+    import hashlib
+
+    entries = []
+    for rel in HARNESS_FILES:
+        path = root / rel
+        if not path.is_file():
+            raise ValueError(f"qualification harness file missing: {rel}")
+        entries.append((rel, hashlib.sha256(path.read_bytes()).hexdigest()))
+    canonical = "".join(f"{name}:{digest}\n" for name, digest in sorted(entries))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
 
 @dataclass
 class Check:
@@ -209,6 +233,11 @@ def run_checks(root: Path) -> list[Check]:
                 proj_doc = _load_json(root / PROJECTION_REL)
                 proj_mode = proj_doc.get("mode")
                 proj_surface = proj_doc.get("pluginSurfaceDigest")
+            try:
+                harness = qualification_harness_digest(root)
+            except ValueError as exc:
+                harness = None
+                add("qualification harness digest computable", False, str(exc))
             for entry in compat.get("verified", []):
                 label = f"receipt valid: {entry.get('platform', '?')} {entry.get('version', '?')}"
                 mismatches = []
@@ -224,12 +253,14 @@ def run_checks(root: Path) -> list[Check]:
                     mismatches.append("projectionMode")
                 if proj_surface is not None and entry.get("pluginSurfaceDigest") != proj_surface:
                     mismatches.append("pluginSurfaceDigest")
+                if harness is not None and entry.get("qualificationHarnessDigest") != harness:
+                    mismatches.append("qualificationHarnessDigest")
                 add(
                     label,
                     not mismatches,
                     "invalidated (re-qualify): " + ", ".join(mismatches)
                     if mismatches
-                    else "matches pinned source + projection + surface",
+                    else "matches pinned source + projection + surface + harness",
                 )
         except json.JSONDecodeError as exc:
             add("compatibility.json parses", False, str(exc))

@@ -22,6 +22,13 @@ def make_repo(tmp_path: Path) -> Path:
     (root / "upstream").mkdir(parents=True)
     shutil.copy(ROOT / "plugin.json", root / "plugin.json")
     shutil.copy(ROOT / "mcp.json", root / "mcp.json")
+    # the qualification harness (its digest is receipt-bound and checked)
+    (root / "scripts").mkdir()
+    for name in ("mcp_client.py", "mcp_probe.py", "e2e_calculator.py"):
+        shutil.copy(ROOT / "scripts" / name, root / "scripts" / name)
+    (root / "tests" / "contract").mkdir(parents=True)
+    shutil.copy(ROOT / "tests" / "contract" / "required-tools.json",
+                root / "tests" / "contract" / "required-tools.json")
     shutil.copy(ROOT / "upstream" / "cua.lock.json", root / "upstream" / "cua.lock.json")
     shutil.copytree(
         ROOT / "upstream" / "source" / "cua-driver",

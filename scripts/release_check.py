@@ -31,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import project_cua_skill as projection
+import verify_projection
 import verify_upstream
 
 COMPAT_REL = Path("upstream/compatibility.json")
@@ -127,6 +128,13 @@ def run_checks(root: Path, tag: str) -> list[Check]:
             problems.append("projectionDigest")
         if entry.get("pluginSurfaceDigest") != surface:
             problems.append("pluginSurfaceDigest")
+        try:
+            harness = verify_projection.qualification_harness_digest(root)
+        except ValueError as exc:
+            harness = None
+            problems.append(f"harness uncomputable ({exc})")
+        if harness is not None and entry.get("qualificationHarnessDigest") != harness:
+            problems.append("qualificationHarnessDigest")
         levels = set(entry.get("levels", []))
         if not {"L2", "L3"} <= levels:
             problems.append("levels")

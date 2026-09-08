@@ -7,11 +7,11 @@ development state.
 
 ## Reporting a vulnerability
 
-Please report security issues privately via GitHub security advisories
-("Report a vulnerability" on this repository's Security tab), or open a
-private discussion with the maintainer. Do **not** open a public issue for
-suspected vulnerabilities. Reports are triaged as maintenance permits;
-there is no bug-bounty program.
+Please report security issues privately via GitHub's Private
+Vulnerability Reporting ("Report a vulnerability" on this repository's
+Security tab). Do **not** open a public issue for suspected
+vulnerabilities. Reports are triaged as maintenance permits; there is no
+bug-bounty program.
 
 ## Security ownership boundary
 

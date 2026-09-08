@@ -9,24 +9,26 @@ desktop security behavior.
 
 ```text
 1.  discover new release (exact tag)
-2.  python scripts/sync_cua.py --tag cua-driver-rs-vX.Y.Z
+2.  uv run python scripts/sync_cua.py --tag cua-driver-rs-vX.Y.Z
       (downloads + pins; fail-closed on file-set / source-path drift)
-3.  python scripts/project_cua_skill.py
+3.  uv run python scripts/project_cua_skill.py
       (fail-closed on transform drift: e.g. the Windows installer block
        changed upstream -> manual review required)
 4.  review the projection diff via upstream/projection-report.json +
       git diff of upstream/source/ and skills/cua-driver/
-5.  python scripts/verify_upstream.py
-6.  python scripts/verify_projection.py
+5.  uv run python scripts/verify_upstream.py
+6.  uv run python scripts/verify_projection.py
       (invalidated receipts fail here until re-qualification)
-7.  python scripts/validate_plugin.py
-8.  python scripts/mcp_probe.py --snapshot
+7.  uv run python scripts/validate_plugin.py
+8.  uv run python scripts/mcp_probe.py --snapshot
 9.  review the tool/schema diff of tests/contract/cua-tools.snapshot.json
-10. real desktop qualification: python scripts/e2e_calculator.py --yes
+10. real desktop qualification: uv run python scripts/e2e_calculator.py --yes
 11. write a fresh receipt in upstream/compatibility.json
       (version, tag, upstreamCommit, skillSource, projectionMode,
-       projectionDigest, pluginCommit, driver artifact sha256)
-12. release a new computer-use version
+       projectionDigest, pluginSurfaceDigest, qualificationHarnessDigest,
+       pluginCommit, driver artifact sha256)
+12. tag the release locally, run uv run python scripts/release_check.py,
+      and push/publish only after it prints RELEASE READY
 ```
 
 Versioning stays independent: plugin `0.1.0` → Cua 0.24.0; plugin `0.1.1`
@@ -53,7 +55,9 @@ Versioning stays independent: plugin `0.1.0` → Cua 0.24.0; plugin `0.1.1`
   content, session lifecycle, desktop and browser semantics
 - image content PASS; desktop E2E PASS (Calculator `6 × 7 = 42`,
   semantic-only, ownership-proven cleanup)
-- fresh qualification receipt bound to the new projection digest
+- fresh qualification receipt bound to the new projection, surface, and
+  harness digests
+- `release_check.py` prints RELEASE READY for the new tag
 
 ## Official portable projection detection (every upgrade — trycua/cua#3387)
 

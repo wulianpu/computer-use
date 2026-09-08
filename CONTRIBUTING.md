@@ -65,9 +65,11 @@ This is what CI runs; it must be green before review.
 
 Any change that touches the pinned source, the projection output, the
 production surface (`plugin.json`, `mcp.json`, `skills/`), or the
-qualification tooling invalidates the receipts in
-`upstream/compatibility.json` (the digests won't match). Re-run, on a real
-machine:
+qualification harness (`scripts/mcp_client.py`, `scripts/mcp_probe.py`,
+`scripts/e2e_calculator.py`, `tests/contract/required-tools.json`)
+invalidates the receipts in `upstream/compatibility.json` — the bound
+digests (`projectionDigest`, `pluginSurfaceDigest`,
+`qualificationHarnessDigest`) won't match. Re-run, on a real machine:
 
 ```bash
 python scripts/mcp_probe.py        # L2
@@ -75,11 +77,13 @@ python scripts/e2e_calculator.py --yes   # L3 (drives a real desktop)
 ```
 
 …then re-sign the receipt (bind: version, upstreamCommit, skillSource,
-projectionMode, projectionDigest, pluginSurfaceDigest, pluginCommit,
-driver artifact sha256) and finish with `python scripts/release_check.py`.
+projectionMode, projectionDigest, pluginSurfaceDigest,
+qualificationHarnessDigest, pluginCommit, driver artifact sha256) and
+finish with `uv run python scripts/release_check.py`.
 
 ## Releases
 
-`scripts/release_check.py` must print `RELEASE READY` before tagging. The
-acceptance list it (partially) machine-proves is
+Create the release tag **locally**, run `uv run python
+scripts/release_check.py`, and only push/publish the tag after it prints
+`RELEASE READY`. The acceptance list it (partially) machine-proves is
 `docs/DEVELOPMENT_DESIGN.md §14`.
