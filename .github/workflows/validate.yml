@@ -31,13 +31,16 @@ jobs:
       - name: Deterministic plugin + skill validation (Level 1)
         run: python scripts/validate_plugin.py
 
-      - name: Upstream mirror verification, offline (Level 1)
+      - name: Upstream source verification, offline (Level 1)
         run: python scripts/verify_upstream.py
+
+      - name: Projection verification, offline (Level 1)
+        run: python scripts/verify_projection.py
 
       # NOTE: skills-ref (the Agent Skills reference implementation) is NOT
       # run here — it is demonstration software, not a production library,
       # and is not reliably installable from PyPI. Our deterministic
-      # validator above is the gate; a skills-ref cross-check can be run
+      # validators above are the gate; a skills-ref cross-check can be run
       # manually on a machine where it is available.
 
       - name: Unit tests + fake MCP server tests (Level 1)

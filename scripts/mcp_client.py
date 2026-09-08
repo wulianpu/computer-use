@@ -5,14 +5,15 @@
     *   TEST / VALIDATION ONLY — NOT RUNTIME   *
     ********************************************
 
-This module exists exclusively for the development toolchain
-(scripts/mcp_probe.py, scripts/e2e_calculator.py) and for tests against
-tests/fixtures/fake_mcp_server.py. It MUST NEVER be used by, referenced
-from, or shipped as part of the plugin runtime surface. The production path
-is always: Agent Host -> mcp.json -> `cua-driver mcp` (design doc §5, §39).
+The MCP qualification client is development-only tooling (design doc v2,
+§20/§38): prefer standards-current MCP tooling where practical; a small
+custom harness is acceptable when it improves deterministic qualification
+(see tests/fixtures/fake_mcp_server.py fault injection). Custom MCP code is
+NEVER part of the production plugin — the production path is always:
+Agent Host -> mcp.json -> `cua-driver mcp` (official Cua entrypoint).
 
-Capabilities: spawn stdio server, MCP initialize handshake (with legacy
-protocol-version fallback), requests, notifications, tools/list,
+Capabilities: spawn stdio server, MCP initialize handshake (modern
+protocol first, legacy fallback), requests, notifications, tools/list,
 tools/call, per-request timeout, stderr capture, clean shutdown.
 """
 

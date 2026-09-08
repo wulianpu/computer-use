@@ -9,18 +9,24 @@ desktop security behavior.
 
 ```text
 1.  discover new release (exact tag)
-2.  update candidate only (upstream/compatibility.json)
-3.  python scripts/sync_cua.py --tag cua-driver-rs-vX.Y.Z
-4.  check source-path / file-set drift reported by the sync (fail-closed)
-5.  review the official skill diff under skills/cua-driver/references/upstream/
-6.  python scripts/verify_upstream.py
-7.  thin Skill compatibility review (frontmatter version, guidance wording)
-8.  python scripts/validate_plugin.py
-9.  python scripts/mcp_probe.py --snapshot
-10. review tool/schema diff of tests/contract/cua-tools.snapshot.json
-11. real desktop qualification (mcp_probe + e2e_calculator --yes)
-12. update `verified` in upstream/compatibility.json with receipts
-13. release a new computer-use version
+2.  python scripts/sync_cua.py --tag cua-driver-rs-vX.Y.Z
+      (downloads + pins; fail-closed on file-set / source-path drift)
+3.  python scripts/project_cua_skill.py
+      (fail-closed on transform drift: e.g. the Windows installer block
+       changed upstream -> manual review required)
+4.  review the projection diff via upstream/projection-report.json +
+      git diff of upstream/source/ and skills/cua-driver/
+5.  python scripts/verify_upstream.py
+6.  python scripts/verify_projection.py
+      (invalidated receipts fail here until re-qualification)
+7.  python scripts/validate_plugin.py
+8.  python scripts/mcp_probe.py --snapshot
+9.  review the tool/schema diff of tests/contract/cua-tools.snapshot.json
+10. real desktop qualification: python scripts/e2e_calculator.py --yes
+11. write a fresh receipt in upstream/compatibility.json
+      (version, tag, upstreamCommit, skillSource, projectionMode,
+       projectionDigest, pluginCommit, driver artifact sha256)
+12. release a new computer-use version
 ```
 
 Versioning stays independent: plugin `0.1.0` → Cua 0.24.0; plugin `0.1.1`
@@ -28,47 +34,44 @@ Versioning stays independent: plugin `0.1.0` → Cua 0.24.0; plugin `0.1.1`
 
 ## Upgrade checklist
 
-- exact tag confirmed
-- exact commit confirmed (lock records it)
+- exact tag and commit confirmed (lock records it)
 - skill source path confirmed (a change needs `--allow-source-path-change`
   and an explicit review — never a silent fallback)
-- skill file set confirmed (new files abort the sync on purpose)
-- official skill diff reviewed
-- upstream license confirmed
-- all hashes regenerated
-- thin skill metadata synchronized (`upstream-version`, `compatibility`)
-- Agent Skills validation PASS (`validate_plugin.py`, optional skills-ref)
-- MCP handshake PASS (`mcp_probe.py`)
-- required tools PASS
-- schema diff reviewed — look at semantics, not names:
-  `element_token`, window targeting, `delivery_mode`, coordinates,
-  `structuredContent`, image content, session lifecycle, desktop and
-  browser semantics
-- image content PASS
-- desktop E2E PASS (Calculator `6 × 7 = 42`, semantic-only)
-- platform support receipt updated
+- skill file set confirmed (new upstream files abort the sync on purpose;
+  update `EXPECTED_FILES` in sync + projection + verifiers together after
+  review)
+- official skill diff reviewed (raw: `upstream/source/`)
+- projection diff reviewed (`upstream/projection-report.json`: unchanged /
+  transformed / excluded)
+- every transform still applies or was consciously updated (fail-closed)
+- upstream license confirmed; all hashes regenerated
+- projection verification PASS (regeneration equality, digest recorded)
+- Agent Skills validation PASS (`validate_plugin.py`)
+- MCP handshake + required tools PASS (`mcp_probe.py`)
+- schema diff reviewed — semantics, not names: `element_token`, window
+  targeting, `delivery_mode`, coordinates, `structuredContent`, image
+  content, session lifecycle, desktop and browser semantics
+- image content PASS; desktop E2E PASS (Calculator `6 × 7 = 42`,
+  semantic-only, ownership-proven cleanup)
+- fresh qualification receipt bound to the new projection digest
 
-## Sync details
+## Official portable projection detection (every upgrade — trycua/cua#3387)
 
-- `sync_cua.py` pins repository + version + tag + immutable commit +
-  source path + per-file sha256. It never rewrites mirrored Markdown; the
-  mirror is byte-equivalent upstream content.
-- The upstream file set must match exactly. If upstream adds a file (e.g. a
-  future `HISTORY.md`) the sync fails with
-  *"Upstream skill-pack shape changed. Manual review required."* — decide
-  deliberately, then update `EXPECTED_FILES` in both `sync_cua.py` and
-  `verify_upstream.py` together.
-- GitHub API rate limits are bypassed via git fallbacks (`ls-remote`,
-  blobless partial clone) and raw file downloads; everything still pins
-  the exact immutable commit. Set `--github-token` (or run
-  `sync_cua.py --github-token …`) when the API is available and you want
-  primary-resolution.
-- After any sync, `compatibility.json`'s `verified` entries belonging to
-  the previous candidate version are dropped automatically — re-qualify.
+Check whether the release ships an official portable skill path, e.g.:
 
-## Official plugin detection (every upgrade)
+```text
+libs/cua-driver/plugins/cua-driver/skills/cua-driver
+```
 
-Check whether the upstream release already ships its own Agent Plugin:
+If it does, trigger **UPSTREAM_PORTABLE_PROJECTION_REVIEW**: evaluate
+switching `projectionMode` from `raw-skill-normalized` to
+`upstream-portable` — consuming the official portable skill directly, with
+zero (or only explicitly declared, near-zero) transforms. Target: the
+local transform set shrinks toward nothing.
+
+## Official plugin detection (every upgrade — trycua/cua#2994)
+
+Check whether the release ships its own Agent Plugin:
 
 ```text
 plugin.json
@@ -76,24 +79,10 @@ mcp.json
 skills/cua-driver/
 ```
 
-Additionally check for the maintainer's portable Skill projection (tracked
-in trycua/cua#3387), e.g. a path like:
-
-```text
-libs/cua-driver/plugins/cua-driver/skills/cua-driver
-```
-
-If either appears, trigger **UPSTREAM_MIGRATION_REVIEW** instead of
-releasing another version of this projection unconditionally. For the
-portable-projection variant, evaluate migrating from our raw
-canonical-skill mirror to the official projection — it could shrink this
-project's thin adapter. Migration criteria: Agent Plugins conformance,
-Agent Skills conformance, Cua runtime compatibility, the platform behavior
-we need, and stable release artifacts. When the official plugin qualifies,
-this project moves to maintenance mode ("Use the official Cua Agent
-Plugin") and stops forking — that is the intended long-term exit.
-
-Related upstream work (this project depends on neither):
-trycua/cua#2994 (Agent Plugins v1 package proposal) and trycua/cua#3387
-(official cross-marketplace portable Skill projection). #2994 closing is a
-no-op; either merging starts an equivalence review.
+If it does, trigger **UPSTREAM_PLUGIN_MIGRATION_REVIEW** instead of
+releasing another projection unconditionally. Migration criteria: Agent
+Plugins conformance, Agent Skills conformance, Cua runtime compatibility,
+the platform behavior we need, and stable release artifacts. When the
+official plugin qualifies, this project moves to maintenance mode ("Use
+the official Cua Agent Plugin") and stops forking — that is the intended
+long-term exit.

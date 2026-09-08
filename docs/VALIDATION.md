@@ -1,8 +1,8 @@
 # Validation Guide
 
-This project validates in four levels. Levels build on each other; a
-platform enters `upstream/compatibility.json`'s `verified` list only after
-L2 + L3 pass on a real machine.
+Four levels. Levels build on each other; a platform enters
+`upstream/compatibility.json`'s `verified` list only after L2 + L3 pass on
+a real machine.
 
 ## Level 1 — Portable (no Cua, no GUI, no network)
 
@@ -12,56 +12,51 @@ with Python 3.12+:
 ```bash
 pip install -e ".[dev]"
 
-python scripts/validate_plugin.py   # plugin.json/mcp.json/thin Skill structure
-python scripts/verify_upstream.py   # upstream mirror hashes, offline
-python -m pytest -v                 # unit tests + fake MCP server tests
+python scripts/validate_plugin.py    # official pinned schemas + project policy
+python scripts/verify_upstream.py    # raw source hashes vs lock, offline
+python scripts/verify_projection.py  # skill tree == regeneration, offline
+python -m pytest -v                  # unit tests + fake MCP server tests
 ```
 
 What each proves:
 
-- `validate_plugin.py` — Agent Plugins closed-core manifest rules, the
-  single `cua-driver mcp` stdio declaration (no wrappers/proxies), fixed
-  skill paths, thin-skill frontmatter conformance (name/description/
-  license/compatibility/metadata rules, no unknown fields), and absence of
-  forbidden local runtime components (`bin/`, wrapper/server entry files).
-- `verify_upstream.py` — lock well-formedness, expected file set, no
-  unexpected mirror files, sha256 match, thin-skill version ↔ lock
-  agreement, license presence, notice ↔ lock agreement.
-- `pytest` — sync logic (fail-closed shape checks, source-path policy,
-  full mocked sync run), upstream verification logic, and the MCP client
-  against `tests/fixtures/fake_mcp_server.py` (handshake, legacy fallback,
+- `validate_plugin.py` — Agent Plugins closed-core manifest rules (from the
+  pinned official schemas, never hand-reimplemented), mcp.json equals the
+  deterministic generator template (one stdio server directly invoking
+  `cua-driver mcp`), the projected skill tree layout (no legacy
+  `references/` model), full Agent Skills frontmatter conformance, the
+  generated-marker, and absence of forbidden local runtime components.
+- `verify_upstream.py` — lock well-formedness, raw source file set, sha256
+  match, license presence, notice/lock agreement.
+- `verify_projection.py` — the committed skill tree equals a fresh
+  regeneration from the raw source (no unexplained diff can exist),
+  `projection.json`/`projection-report.json` consistency, projection-digest
+  stability, and that every qualification receipt still matches the pinned
+  source + current projection digest (invalidated receipts FAIL until
+  re-qualification).
+- `pytest` — sync/projection/verification logic (fail-closed shape checks,
+  transform drift, digest stability, receipt invalidation) and the MCP
+  client against the fake MCP server (handshake, legacy fallback,
   tools/list, tools/call, timeout, bad stdout, stderr noise, process exit).
 
-skills-ref (`skills-ref validate skills/`) is the Agent Skills reference
-implementation and is **demonstration software** — it is not part of CI and
-is not reliably installable from PyPI. The deterministic validators above
-are the gate; you may run a skills-ref cross-check manually on a machine
-where it is available.
+skills-ref is the Agent Skills reference implementation and is
+**demonstration software** — it is not part of CI. The deterministic
+validators are the gate; a skills-ref cross-check can be run manually.
 
 ## Level 2 — Cua MCP contract (needs real `cua-driver`)
 
 ```bash
 python scripts/mcp_probe.py
+python scripts/mcp_probe.py --snapshot   # writes the contract snapshot
 ```
 
-Checks, in order: `cua-driver` on PATH → `cua-driver --version` → version
-comparison against `compatibility.json`'s candidate → spawn
-`cua-driver mcp` → MCP handshake → `tools/list` → required subset
-(`tests/contract/required-tools.json` ⊆ actual tools).
-
-- Version mismatch → FAIL by default (this tool produces qualification
-  evidence); `--allow-version-mismatch` downgrades it to a WARN. The plugin
-  runtime itself never refuses over versions.
-- Contract rule: required ⊆ actual. New upstream tools pass; a removed
-  required tool fails. Tool count is never asserted.
-
-Snapshot the full contract for upgrade diffs:
-
-```bash
-python scripts/mcp_probe.py --snapshot
-# writes tests/contract/cua-tools.snapshot.json
-# (name, description, inputSchema, outputSchema, annotations)
-```
+Checks `cua-driver` on PATH → `--version` vs candidate → spawn
+`cua-driver mcp` → handshake → `tools/list` → required subset
+(`tests/contract/required-tools.json` ⊆ actual). Version mismatch FAILs by
+default (this tool produces qualification evidence);
+`--allow-version-mismatch` downgrades to a WARN. The plugin runtime never
+refuses over versions. Contract rule: required ⊆ actual; tool count is
+never asserted.
 
 ## Level 3 — Desktop qualification (real OS + GUI + Cua)
 
@@ -71,27 +66,25 @@ python scripts/e2e_calculator.py --yes   # actually drives the desktop
 ```
 
 The Calculator `6 × 7 = 42` flow: `start_session` → discover Calculator →
-launch → select the exact window → `get_window_state` → assert structured
-accessibility elements → assert MCP image content → semantic clicks on
-`6`, `×`, `7`, `=` (each against a fresh window state) → verify the
-display shows 42 → `end_session`.
+launch with **ownership tracking** (pre-launch window baseline; only the
+selected new window enters `owned_window_ids`) → `get_window_state` →
+assert structured accessibility elements → assert MCP image content →
+semantic clicks on `6`, `×`, `7`, `=` with the **element_token asserted on
+every click** (fresh state before each action) → verify the display shows
+exactly 42 (digit-bounded) → **owned-only cleanup** → `end_session`.
 
-Rules baked into the script:
-
-- **Semantic-only.** Buttons are located by accessibility name/role and
-  activated via their semantic token; coordinate-based clicks are never
-  constructed, so a semantic-path failure is a qualification failure.
-- **`--yes` required.** Default invocation is a dry run; CI, test
-  discovery, or accidental execution can never touch a real desktop.
-- Schema-aware argument building: tool arguments are filled only with keys
-  the tool's `inputSchema` actually declares (resilient to harmless
-  renames, fail-closed on real contract drift).
+Rules baked into the script: semantic-only (no pixel coordinates, ever);
+`--yes` required (CI/test discovery can never touch a desktop); cleanup
+verifies only against owned window ids — a pre-existing calculator
+elsewhere is not this run's concern.
 
 ## Level 4 — Supported
 
-After L2 + L3 pass on a concrete environment, add a receipt entry to
-`upstream/compatibility.json` → `verified` (see `upstream/README.md` for
-the entry shape). Never add an entry just because Cua published a release.
+After L2 + L3 pass on a concrete environment, add a receipt to
+`upstream/compatibility.json` → `verified` (see `upstream/README.md`).
+Receipts bind `version + upstreamCommit + skillSource + projectionMode +
+projectionDigest + pluginCommit + driver artifact sha256`; any change
+invalidates them (enforced by `verify_projection.py`).
 
 Windows qualification matrix (first supported platform): Windows 11 x86_64
 interactive desktop, exact candidate version; Calculator, Notepad, Chrome,
@@ -102,5 +95,4 @@ fallback; multi-monitor.
 
 Ordinary CI installs no Cua and touches no desktop. `mcp_probe`,
 Calculator E2E, and the desktop matrix run on a dedicated interactive
-qualification host, and their evidence lands in
-`upstream/compatibility.json`.
+qualification host.

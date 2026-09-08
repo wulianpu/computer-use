@@ -54,82 +54,6 @@ class TestLock:
         )
 
 
-THIN_SKILL_TEMPLATE = """---
-name: cua-driver
-description: some description here.
-license: MIT
-compatibility: Requires a compatible cua-driver installation and an Agent Plugin host with MCP stdio support. Upstream guidance is qualified against Cua Driver 0.23.0.
-metadata:
-  upstream: "trycua/cua"
-  upstream-version: "0.23.0"
-  projection: "computer-use"
----
-
-# body
-"""
-
-
-class TestThinSkillUpdate:
-    def test_updates_version_lines(self, tmp_path):
-        skill = tmp_path / "SKILL.md"
-        skill.write_text(THIN_SKILL_TEMPLATE, encoding="utf-8")
-        sync_cua.update_thin_skill(skill, "0.24.0")
-        text = skill.read_text(encoding="utf-8")
-        assert 'upstream-version: "0.24.0"' in text
-        assert "qualified against Cua Driver 0.24.0." in text
-        assert "0.23.0" not in text
-
-    def test_fails_when_frontmatter_drifts(self, tmp_path):
-        skill = tmp_path / "SKILL.md"
-        skill.write_text("---\nname: cua-driver\n---\n", encoding="utf-8")
-        with pytest.raises(sync_cua.SyncError, match="frontmatter"):
-            sync_cua.update_thin_skill(skill, "0.24.0")
-
-
-class TestCompatibilityUpdate:
-    def _lock(self, version="0.24.0", commit="c" * 40, source="libs/cua-driver/rust/Skills/cua-driver"):
-        return {
-            "version": version,
-            "tag": f"cua-driver-rs-v{version}",
-            "commit": commit,
-            "skillSource": source,
-        }
-
-    def _write(self, tmp_path, verified):
-        path = tmp_path / "compatibility.json"
-        path.write_text(json.dumps({
-            "candidate": {"version": "0.23.0", "tag": "old"},
-            "verified": verified,
-            "unsupported": [],
-        }), encoding="utf-8")
-        return path
-
-    def test_receipts_survive_only_the_exact_pinned_source(self, tmp_path):
-        path = self._write(tmp_path, [
-            {"version": "0.24.0", "upstreamCommit": "c" * 40},          # exact match -> keep
-            {"version": "0.24.0", "upstreamCommit": "d" * 40},          # same version, moved commit -> drop
-            {"version": "0.23.0", "upstreamCommit": "c" * 40},          # older version -> drop
-            {"version": "0.24.0"},                                      # legacy receipt w/o commit -> drop
-        ])
-        sync_cua.update_compatibility(path, self._lock())
-        compat = json.loads(path.read_text(encoding="utf-8"))
-        kept = compat["verified"]
-        assert len(kept) == 1
-        assert kept[0]["upstreamCommit"] == "c" * 40
-        assert compat["candidate"] == {
-            "version": "0.24.0", "tag": "cua-driver-rs-v0.24.0", "commit": "c" * 40,
-        }
-
-    def test_skill_source_change_invalidates_receipts(self, tmp_path):
-        path = self._write(tmp_path, [
-            {"version": "0.24.0", "upstreamCommit": "c" * 40,
-             "skillSource": "AgentPlugin/skills/cua-driver"},
-        ])
-        sync_cua.update_compatibility(path, self._lock())  # default source differs
-        compat = json.loads(path.read_text(encoding="utf-8"))
-        assert compat["verified"] == []
-
-
 # --------------------------------------------------- full run with fake net
 
 
@@ -160,16 +84,11 @@ def _make_repo(tmp_path: Path) -> Path:
                     "verified": [], "unsupported": []}),
         encoding="utf-8",
     )
-    skill_dir = root / "skills" / "cua-driver" / "references" / "upstream"
-    skill_dir.mkdir(parents=True)
-    (root / "skills" / "cua-driver" / "SKILL.md").write_text(
-        THIN_SKILL_TEMPLATE, encoding="utf-8"
-    )
     return root
 
 
 class TestMainEndToEnd:
-    def test_full_sync_writes_all_artifacts(self, tmp_path, monkeypatch):
+    def test_full_sync_writes_source_cache_and_lock_only(self, tmp_path, monkeypatch):
         root = _make_repo(tmp_path)
         monkeypatch.setattr(sync_cua, "Upstream", FakeUpstream)
         rc = sync_cua.main([
@@ -182,35 +101,36 @@ class TestMainEndToEnd:
         assert lock["version"] == "0.24.0"
         assert lock["commit"] == "f" * 40
         assert lock["skillSource"] == sync_cua.DEFAULT_SOURCE_PATH
-        expected_hash = sync_cua.sha256_hex(f"content of {sync_cua.DEFAULT_SOURCE_PATH}/SKILL.md\n".encode())
+        expected_hash = sync_cua.sha256_hex(
+            f"content of {sync_cua.DEFAULT_SOURCE_PATH}/SKILL.md\n".encode()
+        )
         assert lock["files"]["SKILL.md"]["sha256"] == expected_hash
 
-        mirror = root / "skills" / "cua-driver" / "references" / "upstream"
-        mirrored = sorted(p.name for p in mirror.iterdir())
-        assert mirrored == sorted(sync_cua.EXPECTED_FILES)
-        assert (mirror / "SKILL.md").read_bytes() == f"content of {sync_cua.DEFAULT_SOURCE_PATH}/SKILL.md\n".encode()
+        source = root / "upstream" / "source" / "cua-driver"
+        files = sorted(p.name for p in source.iterdir())
+        assert files == sorted(sync_cua.EXPECTED_FILES)
+        assert (source / "SKILL.md").read_bytes() == (
+            f"content of {sync_cua.DEFAULT_SOURCE_PATH}/SKILL.md\n".encode()
+        )
 
+        # Scope (§22): sync owns downloading and pinning only — it must NOT
+        # touch compatibility receipts or any skill file.
         compat = json.loads((root / "upstream" / "compatibility.json").read_text(encoding="utf-8"))
-        assert compat["candidate"] == {
-            "version": "0.24.0",
-            "tag": "cua-driver-rs-v0.24.0",
-            "commit": "f" * 40,
-        }
-
-        skill = (root / "skills" / "cua-driver" / "SKILL.md").read_text(encoding="utf-8")
-        assert 'upstream-version: "0.24.0"' in skill
+        assert compat["candidate"] == {"version": "0.23.0", "tag": "old"}
+        assert not (root / "skills").exists()
 
         notices = (root / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
         assert "0.24.0" in notices and "f" * 40 in notices
         assert (root / "licenses" / "CUA-LICENSE.md").is_file()
 
-    def test_removes_stale_mirror_files(self, tmp_path, monkeypatch):
+    def test_removes_stale_source_files(self, tmp_path, monkeypatch):
         root = _make_repo(tmp_path)
-        stale = root / "skills" / "cua-driver" / "references" / "upstream" / "OLD.md"
-        stale.write_text("stale", encoding="utf-8")
+        source = root / "upstream" / "source" / "cua-driver"
+        source.mkdir(parents=True)
+        (source / "OLD.md").write_text("stale", encoding="utf-8")
         monkeypatch.setattr(sync_cua, "Upstream", FakeUpstream)
         assert sync_cua.main(["--tag", "cua-driver-rs-v0.24.0", "--root", str(root)]) == 0
-        assert not stale.exists()
+        assert not (source / "OLD.md").exists()
 
     def test_source_path_change_requires_flag(self, tmp_path, monkeypatch):
         root = _make_repo(tmp_path)

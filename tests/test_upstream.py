@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -14,19 +15,6 @@ import verify_upstream  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-THIN_SKILL = """---
-name: cua-driver
-description: thin skill description.
-license: MIT
-compatibility: Requires a compatible cua-driver installation and an Agent Plugin host with MCP stdio support. Upstream guidance is qualified against Cua Driver 0.24.0.
-metadata:
-  upstream: "trycua/cua"
-  upstream-version: "0.24.0"
-  projection: "computer-use"
----
-body
-"""
-
 NOTICES = """# Third-Party Notices
 trycua/cua 0.24.0 cua-driver-rs-v0.24.0 4b3396d9fe4bd3cf723b0eb8db83c18a8764b520
 libs/cua-driver/rust/Skills/cua-driver MIT
@@ -37,17 +25,13 @@ LICENSE = "MIT License\n\nPermission is hereby granted, free of charge.\n"
 
 def make_repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
-    mirror = root / "skills" / "cua-driver" / "references" / "upstream"
-    mirror.mkdir(parents=True)
+    source = root / "upstream" / "source" / "cua-driver"
+    source.mkdir(parents=True)
     hashes = {}
     for name in verify_upstream.EXPECTED_FILES:
         data = f"# {name}\nupstream content\n".encode()
-        (mirror / name).write_bytes(data)
-        import hashlib
-
+        (source / name).write_bytes(data)
         hashes[name] = hashlib.sha256(data).hexdigest()
-    (root / "skills" / "cua-driver" / "SKILL.md").write_text(THIN_SKILL, encoding="utf-8")
-    (root / "upstream").mkdir()
     (root / "upstream" / "cua.lock.json").write_text(json.dumps({
         "repository": "trycua/cua",
         "version": "0.24.0",
@@ -71,36 +55,26 @@ class TestSyntheticRepo:
         checks = verify_upstream.run_checks(make_repo(tmp_path))
         assert failures(checks) == []
 
-    def test_tampered_mirror_file_fails(self, tmp_path):
+    def test_tampered_source_file_fails(self, tmp_path):
         root = make_repo(tmp_path)
-        target = root / "skills" / "cua-driver" / "references" / "upstream" / "SKILL.md"
+        target = root / "upstream" / "source" / "cua-driver" / "SKILL.md"
         target.write_bytes(target.read_bytes() + b"manual edit\n")
         checks = verify_upstream.run_checks(root)
         assert any("sha256 matches lock: SKILL.md" in f for f in failures(checks))
 
-    def test_unexpected_mirror_file_fails(self, tmp_path):
+    def test_unexpected_source_file_fails(self, tmp_path):
         root = make_repo(tmp_path)
-        (root / "skills" / "cua-driver" / "references" / "upstream" / "HISTORY.md").write_text(
+        (root / "upstream" / "source" / "cua-driver" / "HISTORY.md").write_text(
             "extra", encoding="utf-8"
         )
         checks = verify_upstream.run_checks(root)
-        assert any("no unexpected mirrored files" in f for f in failures(checks))
+        assert any("no unexpected source files" in f for f in failures(checks))
 
-    def test_missing_mirror_file_fails(self, tmp_path):
+    def test_missing_source_file_fails(self, tmp_path):
         root = make_repo(tmp_path)
-        (root / "skills" / "cua-driver" / "references" / "upstream" / "BROWSER.md").unlink()
+        (root / "upstream" / "source" / "cua-driver" / "BROWSER.md").unlink()
         checks = verify_upstream.run_checks(root)
-        assert any("mirror file exists: BROWSER.md" in f for f in failures(checks))
-
-    def test_version_mismatch_between_skill_and_lock_fails(self, tmp_path):
-        root = make_repo(tmp_path)
-        skill = root / "skills" / "cua-driver" / "SKILL.md"
-        skill.write_text(
-            skill.read_text(encoding="utf-8").replace("0.24.0", "0.23.0"),
-            encoding="utf-8",
-        )
-        checks = verify_upstream.run_checks(root)
-        assert any("thin Skill version matches lock" in f for f in failures(checks))
+        assert any("source file exists: BROWSER.md" in f for f in failures(checks))
 
     def test_missing_license_fails(self, tmp_path):
         root = make_repo(tmp_path)
@@ -117,20 +91,8 @@ class TestSyntheticRepo:
 
 class TestRealRepo:
     def test_real_repo_upstream_verification_passes(self):
-        mirror = ROOT / "skills" / "cua-driver" / "references" / "upstream"
-        if not (mirror / "SKILL.md").is_file():
-            pytest.skip("upstream mirror not synced yet — run scripts/sync_cua.py first")
+        source = ROOT / "upstream" / "source" / "cua-driver"
+        if not (source / "SKILL.md").is_file():
+            pytest.skip("upstream source not synced yet — run scripts/sync_cua.py first")
         checks = verify_upstream.run_checks(ROOT)
         assert failures(checks) == []
-
-
-class TestFrontmatterParser:
-    def test_parses_nested_metadata_strings(self):
-        fm, error = verify_upstream._parse_frontmatter(THIN_SKILL)
-        assert error is None
-        assert fm["name"] == "cua-driver"
-        assert fm["metadata"]["upstream-version"] == "0.24.0"
-
-    def test_rejects_unterminated_frontmatter(self):
-        fm, error = verify_upstream._parse_frontmatter("---\nname: x\n")
-        assert fm is None and error == "unterminated frontmatter"

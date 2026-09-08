@@ -17,9 +17,9 @@ Cua Driver MCP + official Cua Agent Skill guidance
 Agent Plugins 1.0.0 portable package
 ```
 
-Final flow: Agent Plugins Host → plugin.json → (Skill → thin adapter →
-official Cua guidance) + (mcp.json → `cua-driver mcp` → Cua Driver →
-Desktop) → Agent → Cua MCP tools → Desktop.
+Final flow: Agent Plugins Host → plugin.json → (projected official Cua
+skill) + (mcp.json → official `cua-driver mcp` → Cua Driver → Desktop) →
+Agent → Cua MCP tools → Desktop.
 
 ## 2. Ownership boundary (the core architecture rule)
 
@@ -75,26 +75,38 @@ Everything else — `scripts/`, `tests/`, `upstream/`, `docs/`, `.github/`,
   `cua-driver` is not on PATH the plugin is *unavailable*; it never
   installs, downloads, or updates Cua at runtime. No runtime network access.
 
-## 6. Skill strategy: conformant thin skill + official mirror
+## 6. Skill model: official Skill projection (no authored skill)
 
-Upstream Cua's own `SKILL.md` frontmatter is not strictly conforming Agent
-Skills metadata, so it cannot be shipped as the plugin skill directly.
-Strategy:
+There is no "our own Skill". The production Agent Skill under
+`skills/cua-driver/` is a **deterministic, auditable, minimal projection of
+the official Cua Driver skill pack**:
 
 ```text
-skills/cua-driver/SKILL.md          thin, conforming (transport adaptation)
-skills/cua-driver/references/upstream/*   byte-exact official Cua skill pack
+official upstream SKILL.md  →  deterministic projection  →  skills/cua-driver/SKILL.md
 ```
 
-Hosts only discover skills in direct subdirectories of `skills/`, so the
-nested upstream `SKILL.md` is reference material, not a second skill.
+The raw upstream pack lives in `upstream/source/cua-driver/` (outside the
+skill discovery tree); `scripts/project_cua_skill.py` generates the skill
+tree; hand-editing is forbidden and detected (regeneration comparison).
+Upstream's own frontmatter is not strictly conforming Agent Skills
+metadata (nested `metadata.openclaw`, `version` keys), so the projection
+normalizes the frontmatter while preserving the official
+`name`/`description` verbatim.
 
-Priority rule: **Cua semantics** (snapshot, element_token, browser,
-delivery, platform, recording) belong to `references/upstream/*`;
-**plugin transport semantics** belong to the thin `SKILL.md`. Where
-upstream guidance demonstrates a `cua-driver` CLI call, the thin skill
-directs the agent to invoke the corresponding Cua MCP tool instead of
-requiring a shell — transport adaptation, not a behavior fork.
+The complete transform set is registered in `upstream/projection.json` and
+kept minimal (frontmatter normalization, generated-notice insertion, one
+additive MCP-transport note, removal of the plugin-side auto-executable
+Windows installer one-liner, exclusion of the pack README). Everything
+else is byte-exact. Transforms fail closed: an expected upstream block
+that changed upstream aborts the projection for manual review.
+`scripts/verify_projection.py` re-proves offline that the committed tree
+equals the regeneration, and invalidates qualification receipts when the
+projection digest changes. Long-term goal (trycua/cua#3387):
+`upstream-portable` mode with **zero transforms**.
+
+`computer-use` MUST NOT author independent Computer Use operating
+guidance. If a piece of production Computer Use behavior is authored here
+instead of coming from Cua, the architecture has drifted.
 
 ## 7. Upstream pinning and sync
 
@@ -109,26 +121,20 @@ commit:     4b3396d9fe4bd3cf723b0eb8db83c18a8764b520
 skillSource: libs/cua-driver/rust/Skills/cua-driver
 ```
 
-`scripts/sync_cua.py --tag cua-driver-rs-v0.24.0` resolves the tag to a
-commit, verifies the skill-pack file set (fail closed on any shape drift —
-a new upstream file such as a future `HISTORY.md` aborts with "manual
-review required"), downloads the exact-commit files byte-for-byte, saves
-the upstream license to `licenses/CUA-LICENSE.md`, writes the lock,
-updates `compatibility.json`'s candidate and the thin skill's version
-metadata, and regenerates `THIRD_PARTY_NOTICES.md`. A `skillSource` change
-requires `--allow-source-path-change` (manual review; never a silent
-fallback). The mirror is marked `linguist-generated` via `.gitattributes`
-and `-text` so checkout never rewrites the bytes the hashes cover.
-
-`scripts/verify_upstream.py` re-checks everything offline: file set, no
-extras, sha256 match, thin-skill/lock version agreement, license presence,
-notice/lock agreement. Any manual edit of generated files FAILS.
+`scripts/sync_cua.py` downloads and pins ONLY (raw cache under
+`upstream/source/cua-driver/`, license, lock, notices). It never touches
+the skill tree (that is `project_cua_skill.py`) or receipts (that is
+qualification). The git fallback fetches by the resolved commit SHA —
+never HEAD, a branch, or the tag. A `skillSource` change requires
+`--allow-source-path-change` (manual review, never a silent fallback).
+Pipeline: `sync_cua.py` → `project_cua_skill.py` → `verify_upstream.py` /
+`verify_projection.py` → `validate_plugin.py`.
 
 ## 8. Validation levels
 
 | Level | Name | Requires | Proves |
 | --- | --- | --- | --- |
-| 1 | Portable | nothing | structure, manifests, thin skill, hashes, unit + fake-MCP tests (CI) |
+| 1 | Portable | nothing | structure, manifests, projected skill + projection verification, hashes, unit + fake-MCP tests (CI) |
 | 2 | Cua MCP contract | real `cua-driver` | version, `cua-driver mcp`, handshake, tools/list, required subset (`required ⊆ actual`; count is never a contract) |
 | 3 | Desktop qualification | real OS + GUI + Cua | observation, screenshot/image content, accessibility, semantic action, mutation verification |
 | 4 | Supported | concrete version+platform receipts in `compatibility.json` | support matrix entry |
@@ -141,27 +147,30 @@ version-check wrapper.
 
 | Script | Category | Notes |
 | --- | --- | --- |
-| `scripts/sync_cua.py` | upstream sync | fail-closed mirror generator (GitHub API with git/raw fallbacks; the git fallback fetches by the resolved commit SHA, never HEAD) |
-| `scripts/verify_upstream.py` | verification | offline, no network |
-| `scripts/validate_plugin.py` | verification | pinned official schemas + project policy, offline |
-| `scripts/mcp_client.py` | verification | **TEST / VALIDATION ONLY** minimal MCP stdio client |
+| `scripts/sync_cua.py` | upstream sync | download + pin only (raw cache, license, lock, notices); git fallback fetches by resolved commit SHA, never HEAD |
+| `scripts/project_cua_skill.py` | projection | deterministic skill projection; minimal registered transforms; fail-closed on upstream drift; writes `projection.json` + `projection-report.json` |
+| `scripts/verify_upstream.py` | verification | offline raw-source hashes vs lock, license, notices |
+| `scripts/verify_projection.py` | verification | offline: skill tree == regeneration, projection.json/report consistency, receipt validity (projection digest bound) |
+| `scripts/validate_plugin.py` | verification | pinned official schemas + project policy, offline; mcp.json deterministic template; projected-skill Agent Skills conformance |
+| `scripts/mcp_client.py` | verification | development-only MCP qualification harness (custom harness acceptable; official SDK acceptable; never production) |
 | `scripts/mcp_probe.py` | qualification (L2) | handshake, tools/list, required subset, optional `--snapshot` contract snapshot for upgrade diffs |
-| `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only, dry-run unless `--yes`; proves launch ownership and closes only what it launched |
+| `scripts/e2e_calculator.py` | qualification (L3) | Calculator `6 × 7 = 42`, semantic-only with asserted element tokens, ownership-proven (`owned_window_ids = {selected window}`), exact digit-bounded result, owned-only cleanup |
 
 Validation model: the **official Agent Plugins schemas, pinned as local
 copies under `schemas/agent-plugins/1.0.0/`, are the authority** for
 plugin.json / mcp.json field sets (validated with `jsonschema`, never
 re-implemented by hand). `validate_plugin.py` adds only project policy
 (name/server identity, direct `cua-driver mcp` invocation, no wrappers, no
-bundled runtime, thin-skill conformance). skills-ref (Agent Skills
+bundled runtime, projected-skill conformance). skills-ref (Agent Skills
 reference implementation) is demonstration software; it is not a CI gate
 here — the deterministic validators are, and a skills-ref cross-check can
 be run manually where available.
 
 Qualification receipts in `upstream/compatibility.json` are bound to
-`(version, upstreamCommit, skillSource)` — a same-version re-pin
-invalidates them — and record the plugin commit plus the exact driver
-artifact digest the evidence was produced against.
+`(version, upstreamCommit, skillSource, projectionMode, projectionDigest)`
+— any same-version re-pin or projection change invalidates them — and
+record the plugin commit plus the exact driver artifact digest the
+evidence was produced against.
 
 Toolchain: Python ≥3.12, pytest/jsonschema/PyYAML as *development*
 dependencies only. The plugin runtime has no Python, no Node, no custom
@@ -187,7 +196,8 @@ process.
 
 Fixed sequence: discover release → update candidate only → `sync_cua.py`
 → check source-path/file-set drift → review official skill diff →
-`verify_upstream.py` → thin-skill compatibility review → plugin/skill
+`project_cua_skill.py` + `verify_upstream.py` + `verify_projection.py` →
+projection diff review → plugin/skill
 validation → `mcp_probe.py --snapshot` → tool/schema diff (semantic fields:
 element_token, window targeting, delivery_mode, coordinates,
 structuredContent, image content, session lifecycle, desktop/browser
@@ -200,13 +210,16 @@ Agent Plugin (`plugin.json`/`mcp.json`/`skills/…`). If it does, trigger
 conformance, compatibility, platform behavior, and stable artifacts, and
 move this project to maintenance mode pointing at the official plugin.
 
-Related upstream work: trycua/cua#2994 (Agent Plugins v1 package proposal —
-closure is a no-op, merge starts an equivalence review) and trycua/cua#3387
-(the maintainer's cross-marketplace portable Skill projection — if upstream
-ships an official portable skill path such as
-`libs/cua-driver/plugins/cua-driver/skills/cua-driver`, evaluate migrating
-from the raw canonical-skill mirror to that projection to shrink the thin
-adapter). This project depends on neither.
+Related upstream work (this project depends on neither):
+trycua/cua#3387 — the maintainer's cross-marketplace portable Skill
+projection; if upstream ships
+`libs/cua-driver/plugins/cua-driver/skills/cua-driver` in a release,
+trigger **UPSTREAM_PORTABLE_PROJECTION_REVIEW** and switch `projectionMode`
+from `raw-skill-normalized` to `upstream-portable`, targeting zero
+transforms. trycua/cua#2994 — the Agent Plugins v1 package proposal; if
+upstream ships `plugin.json`/`mcp.json`/`skills/cua-driver/`, trigger
+**UPSTREAM_PLUGIN_MIGRATION_REVIEW** (maintenance mode if the official
+plugin qualifies).
 
 ## 12. Versioning, security, release
 

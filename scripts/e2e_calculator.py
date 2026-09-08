@@ -327,16 +327,19 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
             client.tools_call(
                 "click", build_args(schemas.get("click"), click_args), timeout=30.0)
 
-        def calculator_windows() -> list:
+        def owned_remaining() -> list:
+            """§33: check cleanup only against owned window ids — a
+            pre-existing calculator elsewhere on the desktop is not our
+            concern and must not flip this run's result."""
             wins = extract_windows(result_payload(client.tools_call(
                 "list_windows", build_args(schemas.get("list_windows"), {}), timeout=timeout)))
-            return [w2 for w2 in wins if any(n in element_text(w2).lower() for n in needles)]
+            return [w2 for w2 in wins if window_id(w2) in owned_window_ids]
 
         need_escalation = False
         try:
             click_close()  # background: mandatory first attempt
             time.sleep(1.5)  # UWP close may lag behind the unverifiable effect
-            need_escalation = bool(calculator_windows())
+            need_escalation = bool(owned_remaining())
         except mcp_client.McpError as exc:
             # structured background rejection (e.g. background_unavailable):
             # the delivery_mode contract says re-issue the same action with
@@ -358,7 +361,7 @@ def cleanup_launched_app(client, schemas: dict, needles: list[str], timeout: flo
                 # the window vanished mid-escalation: the background click
                 # had actually worked; fall through and re-check.
             time.sleep(1.5)
-            remaining = calculator_windows()
+            remaining = owned_remaining()
         else:
             remaining = []
         if remaining:
@@ -443,7 +446,6 @@ def run_qualification(args) -> int:
         new_windows = [
             w for w in post_windows if (w.get("pid"), window_id(w)) not in baseline_ids
         ]
-        owned_window_ids = {window_id(w) for w in new_windows}
         calc_windows = [
             w for w in new_windows if any(n in element_text(w).lower() for n in needles)
         ]
@@ -455,6 +457,9 @@ def run_qualification(args) -> int:
             )
         window = calc_windows[0]
         wid = window_id(window)
+        # Ownership (§32): ONLY the explicitly selected target window is
+        # owned — not every new window (another app may have opened one).
+        owned_window_ids = {wid}
         print(f"window selected (owned): {element_text(window)!r} "
               f"(id={wid}, pid={window.get('pid')})")
 

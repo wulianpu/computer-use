@@ -1,0 +1,25 @@
+{
+  "version": "0.24.0",
+  "sourceCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+  "unchanged": [
+    "BROWSER.md",
+    "EMBEDDING.md",
+    "LINUX.md",
+    "MACOS.md",
+    "RECORDING.md"
+  ],
+  "transformed": {
+    "SKILL.md": [
+      "normalize-agent-skills-frontmatter",
+      "insert-generated-notice",
+      "prefer-agent-plugin-mcp-transport"
+    ],
+    "WINDOWS.md": [
+      "remove-plugin-side-native-installer-execution"
+    ]
+  },
+  "excluded": [
+    "README.md"
+  ],
+  "projectionDigest": "sha256:9c8bbc53ae5a3d9ad440e4e14d6d9aefc43b2ca8e123a0b4a7a504f0528b6343"
+}

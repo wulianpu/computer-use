@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""sync_cua.py — mirror the official Cua Driver skill pack at an exact tag/commit.
+"""sync_cua.py — download and pin the official Cua Driver skill pack.
 
 This is an upstream-sync development tool. It belongs to one of the four
-allowed self-maintained categories: packaging / upstream sync / verification /
+allowed self-maintained categories: packaging / projection / verification /
 qualification. It is NOT part of the plugin runtime surface.
 
-Responsibilities (design doc §27):
+Scope (design doc v2, §22): sync downloads and pins ONLY. It does not touch
+the production skill tree (that is project_cua_skill.py's deterministic
+projection) and does not touch compatibility receipts (qualification owns
+those; verify_projection.py checks receipt validity).
+
+Responsibilities:
     resolve tag -> immutable commit SHA
     discover the skill-pack directory and check its file set (fail closed)
     download exact-commit files (byte-exact, never rewritten)
     compute sha256 hashes
-    save upstream references under skills/cua-driver/references/upstream/
+    save the raw source cache under upstream/source/cua-driver/
     save the upstream license under licenses/CUA-LICENSE.md
-    generate upstream/cua.lock.json
-    update candidate metadata (compatibility.json + thin Skill version)
+    generate upstream/cua.lock.json and THIRD_PARTY_NOTICES.md
 
 Fail-closed rules:
     - The upstream skill-pack file set must match EXPECTED_FILES exactly.
       Any addition/removal is an error requiring manual review (§28).
     - A skillSource change requires --allow-source-path-change (§26).
-    - Mirror files are written byte-for-byte; no Markdown rewriting (§29).
+    - Files are written byte-for-byte; no Markdown rewriting (§29).
 
 Usage:
     python scripts/sync_cua.py --tag cua-driver-rs-v0.24.0
@@ -64,11 +68,9 @@ LICENSE_CANDIDATES: tuple[str, ...] = (
 )
 MIT_MARKERS = ("MIT License", "Permission is hereby granted")
 
-MIRROR_REL = Path("skills/cua-driver/references/upstream")
+SOURCE_REL = Path("upstream/source/cua-driver")
 LOCK_REL = Path("upstream/cua.lock.json")
-COMPAT_REL = Path("upstream/compatibility.json")
 NOTICES_REL = Path("THIRD_PARTY_NOTICES.md")
-SKILL_REL = Path("skills/cua-driver/SKILL.md")
 LICENSE_REL = Path("licenses/CUA-LICENSE.md")
 
 GIT_TIMEOUT = 300
@@ -152,73 +154,6 @@ produced by `scripts/sync_cua.py` and must not be edited by hand.
 The mirrored skill files are distributed under the upstream MIT license with
 attribution preserved. See `upstream/cua.lock.json` for the pinned hashes.
 """
-
-
-COMPATIBILITY_LINE = (
-    "compatibility: Requires a compatible cua-driver installation and an "
-    "Agent Plugin host with MCP stdio support. Upstream guidance is qualified "
-    "against Cua Driver {version}."
-)
-
-
-def update_thin_skill(skill_path: Path, version: str) -> None:
-    """Synchronize the thin Skill frontmatter with the synced upstream version."""
-    text = skill_path.read_text(encoding="utf-8")
-    text, n_compat = re.subn(
-        r"^compatibility: .*$",
-        lambda _m: COMPATIBILITY_LINE.format(version=version),
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
-    text, n_ver = re.subn(
-        r'^(\s+upstream-version:\s*)"[^"]*"$',
-        rf'\1"{version}"',
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
-    if n_compat != 1 or n_ver != 1:
-        raise SyncError(
-            "Thin SKILL.md frontmatter does not contain the expected "
-            "'compatibility:' / 'upstream-version:' lines; manual update needed."
-        )
-    skill_path.write_text(text, encoding="utf-8", newline="\n")
-
-
-def entry_matches_lock(entry: dict, lock: dict) -> bool:
-    """Qualification evidence is bound to the exact pinned source.
-
-    A receipt only survives a re-sync when the version AND the immutable
-    upstream commit AND the skill source path are all unchanged — a same-version
-    re-pin (moved tag, rewritten source, moved skillSource) invalidates it.
-    """
-    return (
-        entry.get("version") == lock["version"]
-        and entry.get("upstreamCommit") == lock["commit"]
-        and entry.get("skillSource", lock["skillSource"]) == lock["skillSource"]
-    )
-
-
-def update_compatibility(path: Path, lock: dict) -> None:
-    """Update the candidate block; drop receipts that do not match the pinned source."""
-    compat = json.loads(path.read_text(encoding="utf-8"))
-    compat["candidate"] = {
-        "version": lock["version"],
-        "tag": lock["tag"],
-        "commit": lock["commit"],
-    }
-    kept, dropped = [], []
-    for entry in compat.get("verified", []):
-        (kept if entry_matches_lock(entry, lock) else dropped).append(entry)
-    for entry in dropped:
-        print(
-            f"  note: dropping verified entry for {entry.get('version')!r} @ "
-            f"{str(entry.get('upstreamCommit'))[:12]!r} — qualification evidence "
-            "does not transfer to the newly pinned source; re-qualify"
-        )
-    compat["verified"] = kept
-    save_json(path, compat)
 
 
 def load_json(path: Path):
@@ -467,14 +402,16 @@ def main(argv=None) -> int:
             "attribution policy requires manual review."
         )
 
-    # --- write mirror (generated material; reset to the expected file set) ---
-    mirror_dir = root / MIRROR_REL
-    mirror_dir.mkdir(parents=True, exist_ok=True)
+    # --- write raw source cache (generated material; reset to the expected
+    #     file set). The skill tree itself is produced later by
+    #     project_cua_skill.py — sync only downloads and pins. ---
+    source_dir = root / SOURCE_REL
+    source_dir.mkdir(parents=True, exist_ok=True)
     for name in EXPECTED_FILES:
-        (mirror_dir / name).write_bytes(payloads[name])
-    for stale in sorted(p.name for p in mirror_dir.iterdir() if p.name not in EXPECTED_FILES):
-        (mirror_dir / stale).unlink()
-        print(f"  removed stale mirror file: {stale}")
+        (source_dir / name).write_bytes(payloads[name])
+    for stale in sorted(p.name for p in source_dir.iterdir() if p.name not in EXPECTED_FILES):
+        (source_dir / stale).unlink()
+        print(f"  removed stale source file: {stale}")
 
     (root / LICENSE_REL).parent.mkdir(parents=True, exist_ok=True)
     (root / LICENSE_REL).write_bytes(license_bytes)
@@ -484,14 +421,13 @@ def main(argv=None) -> int:
     (root / NOTICES_REL).write_text(
         render_third_party_notices(lock), encoding="utf-8", newline="\n"
     )
-    update_compatibility(root / COMPAT_REL, lock)
-    update_thin_skill(root / SKILL_REL, version)
 
     print(
         f"sync complete: {args.repo} {version} ({args.tag} @ {commit[:12]}) -> "
-        f"{MIRROR_REL.as_posix()}"
+        f"{SOURCE_REL.as_posix()}"
     )
-    print("next: python scripts/verify_upstream.py && python scripts/validate_plugin.py")
+    print("next: python scripts/project_cua_skill.py")
+    print("then: python scripts/verify_upstream.py && python scripts/verify_projection.py")
     return 0
 
 

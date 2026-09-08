@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "mode": "raw-skill-normalized",
+  "source": {
+    "repository": "trycua/cua",
+    "version": "0.24.0",
+    "tag": "cua-driver-rs-v0.24.0",
+    "commit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+    "skillSource": "libs/cua-driver/rust/Skills/cua-driver"
+  },
+  "projectionDigest": "sha256:9c8bbc53ae5a3d9ad440e4e14d6d9aefc43b2ca8e123a0b4a7a504f0528b6343",
+  "transforms": [
+    {
+      "id": "normalize-agent-skills-frontmatter",
+      "file": "SKILL.md"
+    },
+    {
+      "id": "insert-generated-notice",
+      "file": "SKILL.md"
+    },
+    {
+      "id": "prefer-agent-plugin-mcp-transport",
+      "file": "SKILL.md"
+    },
+    {
+      "id": "remove-plugin-side-native-installer-execution",
+      "file": "WINDOWS.md"
+    },
+    {
+      "id": "exclude-upstream-pack-readme",
+      "file": "README.md"
+    }
+  ]
+}
