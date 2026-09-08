@@ -9,32 +9,35 @@ independently.
 ### Added
 
 - Agent Plugins 1.0.0 portable package: `plugin.json`, `mcp.json`
-  (stdio → `cua-driver mcp`).
-- Thin conformant Skill `skills/cua-driver/SKILL.md` (transport adaptation
-  only; Cua semantics stay upstream).
-- Byte-exact mirror of the official Cua Driver 0.24.0 skill pack under
-  `skills/cua-driver/references/upstream/`, pinned by
-  `upstream/cua.lock.json` (tag `cua-driver-rs-v0.24.0`, commit
-  `4b3396d9fe4bd3cf723b0eb8db83c18a8764b520`).
-- Upstream tooling: `sync_cua.py` (fail-closed sync),
-  `verify_upstream.py` (offline hash verification),
-  `validate_plugin.py` (deterministic plugin/skill validation),
-  `mcp_client.py` (test-only MCP stdio client),
-  `mcp_probe.py` (Level 2 contract probe + snapshot),
-  `e2e_calculator.py` (Level 3 Calculator qualification, dry-run by default).
-- Tests: sync logic, upstream verification, MCP client against a fake
-  MCP server; portable CI workflow.
-- `compatibility.json` qualification receipt, bound to the exact pinned
-  source (`version` + `upstreamCommit` + `skillSource` + `pluginCommit` +
-  driver artifact sha256): Windows 11 (build 26200) x86_64 interactive
-  desktop, DPI 100%. L2 (MCP probe: handshake 2025-06-18, 57 tools,
-  required subset 18/18, contract snapshot committed) + L3 (Calculator
-  `6 × 7 = 42`: launch-ownership proof, snapshot-bound element_token
-  clicks asserted per click, structured elements + image content PASS,
-  digit-bounded result match, owned-only cleanup with zero leftover
-  windows).
-- Release hardening: pinned official Agent Plugins 1.0.0 schemas under
-  `schemas/` (jsonschema validation; project policy kept separate), git
-  sync fallback fetches by the resolved commit SHA (never HEAD), receipts
-  invalidated by same-version re-pins, skills-ref CI step dropped in favor
-  of the deterministic validators, upstream tracking for trycua/cua#3387.
+  (stdio → `cua-driver mcp`; validated as a deterministic generated
+  declaration against a fixed template).
+- **Official Skill projection** (no authored skill): the raw upstream pack
+  pinned at tag `cua-driver-rs-v0.24.0` / commit
+  `4b3396d9fe4bd3cf723b0eb8db83c18a8764b520` lives in
+  `upstream/source/cua-driver/`; `scripts/project_cua_skill.py`
+  deterministically generates `skills/cua-driver/` with a minimal
+  registered transform set (`upstream/projection.json`): frontmatter
+  normalization (official name/description verbatim), generated-notice
+  insertion, one additive MCP-transport note, removal of the
+  plugin-side auto-executable Windows installer one-liner, and exclusion
+  of the pack README — everything else byte-exact, fail-closed on upstream
+  drift, verified by offline regeneration (`verify_projection.py`) with a
+  projection digest and reviewer report.
+- Toolchain: `sync_cua.py` (download + pin only; git fallback fetches by
+  resolved commit), `project_cua_skill.py`, `verify_upstream.py`,
+  `verify_projection.py`, `validate_plugin.py` (pinned official Agent
+  Plugins schemas + project policy), `mcp_client.py` (development-only
+  harness), `mcp_probe.py` (L2 + contract snapshot),
+  `e2e_calculator.py` (L3, dry-run unless `--yes`).
+- Qualification receipt bound to `version + upstreamCommit + skillSource +
+  projectionMode + projectionDigest + pluginCommit + driver artifact
+  sha256`: Windows 11 (build 26200) x86_64 interactive desktop, DPI 100%,
+  cua-driver 0.24.0 (sha256-verified release binary). L2: handshake
+  2025-06-18, 57 tools, required subset 18/18. L3: Calculator `6 × 7 = 42`
+  with launch-ownership proof, per-click element_token assertions,
+  structured elements + image content, digit-bounded result match,
+  owned-only cleanup with zero leftover windows.
+- Tests (55) covering sync/projection/verification logic, receipt
+  invalidation, Agent Skills frontmatter conformance, the mcp.json
+  deterministic template, and the MCP client against a fake server;
+  portable CI workflow.

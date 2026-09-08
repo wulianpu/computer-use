@@ -10,7 +10,9 @@
       "tag": "cua-driver-rs-v0.24.0",
       "upstreamCommit": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
       "skillSource": "libs/cua-driver/rust/Skills/cua-driver",
-      "pluginCommit": "63c0bab6f97e271cd4e0973751c9b35bd340e477",
+      "projectionMode": "raw-skill-normalized",
+      "projectionDigest": "sha256:9c8bbc53ae5a3d9ad440e4e14d6d9aefc43b2ca8e123a0b4a7a504f0528b6343",
+      "pluginCommit": "f928c4834bea7713272ac8cce8d1b6f89c882626",
       "platform": "windows-x86_64",
       "environment": "Windows 11 (build 26200), x86_64, interactive desktop, primary display DPI 100% (96)",
       "driver": {
@@ -19,7 +21,7 @@
       },
       "levels": ["L2", "L3"],
       "date": "2026-09-08",
-      "notes": "L2: MCP probe PASS — handshake protocol 2025-06-18, serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP Microsoft.WindowsCalculator_8wekyb3d8bbwe); pre-launch window baseline proved launch ownership; snapshot-bound element_token clicks (6, x, 7, =) with token asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); cleanup closed only the owned window via the title-bar close button (background->foreground escalation), zero leftover windows."
+      "notes": "Qualification ran against the projected official skill (raw-skill-normalized). L2: MCP probe PASS — handshake protocol 2025-06-18, serverInfo cua-driver/0.24.0, tools/list 57 tools, required subset 18/18, contract snapshot committed. L3: Calculator E2E PASS — zh-CN 'Windows 计算器' (UWP); pre-launch baseline proved launch ownership and only the selected window entered owned_window_ids; snapshot-bound element_token clicks (6, x, 7, =) asserted per click; get_window_state structured elements (39) + MCP image content PASS; display verified as exactly 42 (digit-bounded); owned-only cleanup via the title-bar close button (background->foreground escalation)."
     }
   ],
   "unsupported": []
